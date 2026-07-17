@@ -1,0 +1,317 @@
+pico-8 cartridge // http://www.pico-8.com
+version 16
+__lua__
+-- 1: maze game -- phase 4: visuals + sound
+
+MW=16 MH=15 TS=8
+
+maze={}
+px,py=1,1
+pdir=0
+score=0
+timer=60
+lseed=0
+lnum=0
+gs=2
+flash_t=0
+flash_c=0
+next_seed=0
+next_tp=false
+trans_t=0
+
+function mg(x,y)
+  if x<0 or x>=MW or y<0 or y>=MH then return 1 end
+  return maze[y*MW+x] or 1
+end
+
+function ms(x,y,v)
+  maze[y*MW+x]=v
+end
+
+function carve(x,y)
+  ms(x,y,0)
+  local d={{0,-2},{2,0},{0,2},{-2,0}}
+  for i=4,2,-1 do
+    local j=flr(rnd(i))+1
+    d[i],d[j]=d[j],d[i]
+  end
+  for i=1,4 do
+    local nx=x+d[i][1]
+    local ny=y+d[i][2]
+    if nx>0 and nx<MW-1 and ny>0 and ny<MH-1 and mg(nx,ny)==1 then
+      ms(x+d[i][1]/2,y+d[i][2]/2,0)
+      carve(nx,ny)
+    end
+  end
+end
+
+function dead_ends()
+  local e={}
+  for y=1,MH-2 do
+    for x=1,MW-2 do
+      if mg(x,y)==0 then
+        local w=0
+        if mg(x,y-1)==1 then w+=1 end
+        if mg(x+1,y)==1 then w+=1 end
+        if mg(x,y+1)==1 then w+=1 end
+        if mg(x-1,y)==1 then w+=1 end
+        if w==3 then add(e,{x,y}) end
+      end
+    end
+  end
+  return e
+end
+
+function shuf(t)
+  for i=#t,2,-1 do
+    local j=flr(rnd(i))+1
+    t[i],t[j]=t[j],t[i]
+  end
+end
+
+function find_first(ttype)
+  for y=0,MH-1 do
+    for x=0,MW-1 do
+      if mg(x,y)==ttype then return x,y end
+    end
+  end
+  return 1,1
+end
+
+function gen_level(seed)
+  srand(seed)
+  for i=0,MW*MH-1 do maze[i]=1 end
+  carve(1,1)
+  ms(1,1,2)
+  px,py=1,1
+  timer=60
+  local e=dead_ends()
+  shuf(e)
+  local types={3}
+  for i=1,flr(rnd(3)) do add(types,4) end
+  for i=1,flr(rnd(3)) do add(types,5) end
+  for i=1,flr(rnd(3)) do add(types,6) end
+  shuf(types)
+  for i=1,min(#e,#types) do
+    ms(e[i][1],e[i][2],types[i])
+  end
+end
+
+function new_game()
+  lseed=flr(rnd(32767))
+  lnum=0
+  score=0
+  gs=0
+  flash_t=0
+  gen_level(lseed)
+end
+
+function handle_tile()
+  local t=mg(px,py)
+  if t==4 then
+    ms(px,py,0)
+    score-=1
+    flash_t=8 flash_c=8
+    sfx(0)
+    if score<0 then gs=1 end
+  elseif t==5 then
+    ms(px,py,0)
+    score+=2
+    timer=60
+    flash_t=8 flash_c=11
+    sfx(1)
+  elseif t==3 then
+    sfx(3)
+    next_seed=lseed+1
+    next_tp=false
+    lnum+=1
+    gs=3 trans_t=18
+  elseif t==6 then
+    sfx(2)
+    local off=flr(rnd(9))+1
+    next_seed=lseed+off
+    next_tp=true
+    lnum+=off
+    gs=3 trans_t=18
+  end
+end
+
+function _init()
+  gs=2
+end
+
+function _update()
+  if gs==2 then
+    if btnp(4) or btnp(5) then new_game() end
+    return
+  end
+  if gs==1 then
+    if btnp(4) or btnp(5) then gs=2 end
+    return
+  end
+  if gs==3 then
+    trans_t-=1
+    if trans_t<=0 then
+      lseed=next_seed
+      gen_level(lseed)
+      if next_tp then
+        local tx,ty=find_first(6)
+        px,py=tx,ty
+      end
+      gs=0
+    end
+    return
+  end
+  local dx,dy=0,0
+  if btnp(0) then dx=-1 pdir=2 end
+  if btnp(1) then dx=1  pdir=0 end
+  if btnp(2) then dy=-1 pdir=3 end
+  if btnp(3) then dy=1  pdir=1 end
+  if dx~=0 or dy~=0 then
+    local nx,ny=px+dx,py+dy
+    if mg(nx,ny)~=1 then
+      px,py=nx,ny
+      handle_tile()
+    end
+  end
+  if gs==0 then
+    timer=max(0,timer-1/30)
+    if timer<=0 then gs=1 end
+  end
+end
+
+-- draw one tile using primitives
+function dtile(x,y)
+  local t=mg(x,y)
+  local bx,by=x*TS,y*TS
+  if t==0 then
+    -- floor: bare black, done
+  elseif t==1 then
+    -- wall: dark blue block with grey highlights
+    rectfill(bx,by,bx+7,by+7,1)
+    pset(bx+1,by+1,5)
+    pset(bx+5,by+5,5)
+  elseif t==2 then
+    -- start: 3-sided box open right, green arrow pointing out (right)
+    local c=11
+    line(bx+1,by+1,bx+5,by+1,c)
+    line(bx+1,by+6,bx+5,by+6,c)
+    line(bx+1,by+1,bx+1,by+6,c)
+    -- arrow >
+    line(bx+4,by+3,bx+6,by+4,c)
+    line(bx+4,by+5,bx+6,by+4,c)
+  elseif t==3 then
+    -- exit: 3-sided box open left, orange arrow pointing in (left)
+    local c=9
+    line(bx+2,by+1,bx+6,by+1,c)
+    line(bx+2,by+6,bx+6,by+6,c)
+    line(bx+6,by+1,bx+6,by+6,c)
+    -- arrow <
+    line(bx+3,by+3,bx+1,by+4,c)
+    line(bx+3,by+5,bx+1,by+4,c)
+  elseif t==4 then
+    -- trap: red x
+    line(bx+1,by+1,bx+6,by+6,8)
+    line(bx+6,by+1,bx+1,by+6,8)
+  elseif t==5 then
+    -- treasure: yellow diamond
+    local c=10
+    line(bx+3,by+1,bx+6,by+4,c)
+    line(bx+6,by+4,bx+3,by+6,c)
+    line(bx+3,by+6,bx+0,by+4,c)
+    line(bx+0,by+4,bx+3,by+1,c)
+  elseif t==6 then
+    -- teleport: cyan ringed portal
+    local c=12
+    circ(bx+3,by+3,3,c)
+    circ(bx+3,by+3,1,c)
+  end
+end
+
+-- simple humanoid player, direction shown by arm
+function dplayer()
+  local bx,by=px*TS,py*TS
+  -- head
+  rectfill(bx+3,by+1,bx+4,by+2,7)
+  -- body
+  rectfill(bx+3,by+3,bx+4,by+5,7)
+  -- arm in movement direction
+  if pdir==0 then pset(bx+5,by+3,7)
+  elseif pdir==2 then pset(bx+2,by+3,7)
+  elseif pdir==3 then pset(bx+3,by+0,7)
+  else pset(bx+4,by+5,7) end
+  -- legs
+  pset(bx+2,by+6,7)
+  pset(bx+5,by+6,7)
+end
+
+function draw_hud()
+  rectfill(0,120,127,127,1)
+  print(score,2,121,10)
+  local lstr=tostr(lnum+1)
+  print(lstr,64-#lstr*2,121,7)
+  local tstr=tostr(flr(timer))
+  print(tstr.."s",126-#tstr*4,121,6)
+end
+
+function _draw()
+  cls(0)
+
+  if gs==2 then
+    rect(6,6,121,121,5)
+    rect(7,7,120,120,1)
+    print("this is",44,22,6)
+    print("#1",54,34,5)
+    print("#1",55,34,7)
+    print("a test game",30,50,10)
+    line(18,64,109,64,5)
+    if (time()*2)%2<1 then
+      print("press x to start",23,76,7)
+    end
+    print("arrows to move",27,100,5)
+    return
+  end
+
+  if gs==1 then
+    rect(16,24,111,104,8)
+    rect(17,25,110,103,0)
+    print("game over",38,34,8)
+    line(20,44,107,44,8)
+    print("score",49,56,6)
+    local sc=tostr(score)
+    print(sc,60-#sc*2,66,7)
+    if (time()*2)%2<1 then
+      print("press x",43,88,6)
+    end
+    draw_hud()
+    return
+  end
+
+  if gs==3 then
+    local c=0
+    if (trans_t%6)<3 then c=7 end
+    rectfill(0,0,127,119,c)
+    draw_hud()
+    return
+  end
+
+  -- playing
+  if flash_t>0 then
+    rectfill(0,0,127,119,flash_c)
+    flash_t-=1
+  else
+    for y=0,MH-1 do
+      for x=0,MW-1 do
+        dtile(x,y)
+      end
+    end
+    dplayer()
+  end
+  draw_hud()
+end
+
+__sfx__
+000a000024350213401f3301c31000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000a000024350283502b35030350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000600002164024640286402b64030640000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0014000024350283502b3503035034350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
