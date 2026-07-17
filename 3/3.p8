@@ -1,0 +1,226 @@
+pico-8 cartridge // http://www.pico-8.com
+version 42
+__lua__
+-- 3: 3 falling -- phase 6: visuals & sound polish
+
+colc={6,12,8,9,11}
+colsc={1,2,-2,1,4}
+catch_sfx={0,1,4,2,3}
+combo_sfx={5,6,7,8,9}
+
+function any_btnp()
+  for i=0,5 do
+    if btnp(i) then return true end
+  end
+  return false
+end
+
+function trigger_combo(c)
+  if c==1 then score+=5
+  elseif c==2 then score+=10
+  elseif c==3 then score+=25
+  elseif c==4 then lives=5 pseg=min(5,pseg+1)
+  elseif c==5 then lives=min(5,lives+1) end
+  flash_c=colc[c]
+  flash_t=15
+  sfx(combo_sfx[c])
+end
+
+function rnd_col()
+  local r=flr(rnd(100))
+  if r<40 then return 1
+  elseif r<65 then return 2
+  elseif r<80 then return 3
+  elseif r<95 then return 4
+  else return 5 end
+end
+
+function ditem(it)
+  local fill=colc[it.c]
+  local bord=it.c==1 and 0 or 7
+  rectfill(it.x,it.y,it.x+7,it.y+7,fill)
+  rect(it.x,it.y,it.x+7,it.y+7,bord)
+end
+
+function paddle_w()
+  if pseg<=0 then return 4 end
+  return pseg*8
+end
+
+function dpaddle()
+  rectfill(px,py,px+pw-1,py+7,7)
+  rect(px,py,px+pw-1,py+7,1)
+  for i=1,pseg-1 do
+    local lx=px+i*8-1
+    line(lx,py,lx,py+7,1)
+  end
+end
+
+function draw_hud()
+  print("lives:"..lives,2,113,7)
+  local n=#last3
+  local iw=6
+  local startx=64-n*iw/2
+  for i=1,n do
+    local c=colc[last3[i]]
+    rectfill(startx+(i-1)*iw,113,startx+(i-1)*iw+4,117,c)
+  end
+  local sc=tostr(max(0,score))
+  print(sc,125-#sc*4,113,7)
+end
+
+function draw_title()
+  cls(0)
+  for i=0,4 do
+    rect(i,i,127-i,127-i,colc[i+1])
+  end
+  print("3 falling",38,54,7)
+  if blink_t<15 then
+    print("press any button",22,70,7)
+  end
+end
+
+function draw_end()
+  cls(0)
+  if won then
+    print("you survived",28,40,11)
+  else
+    print("game over",44,40,8)
+  end
+  print("score:"..max(0,score),34,60,7)
+  print("caught:"..caught_ct,34,70,7)
+  print("missed:"..missed_ct,34,80,7)
+  if blink_t<15 then
+    print("press any button",22,100,7)
+  end
+end
+
+function new_game()
+  py=103
+  pseg=3
+  pw=paddle_w()
+  pmid=64
+  px=pmid-pw/2
+  spawn_t=1
+  itms={}
+  lives=5
+  score=0
+  won=false
+  t=0
+  last3={}
+  flash_t=0
+  flash_c=0
+  caught_ct=0
+  missed_ct=0
+  gs=1
+end
+
+function _init()
+  pspd=3
+  base_spd=1
+  blink_t=0
+  gs=0
+end
+
+function _update()
+  blink_t=(blink_t+1)%30
+
+  if gs==0 then
+    if any_btnp() then new_game() end
+    return
+  end
+  if gs==2 then
+    if any_btnp() then gs=0 end
+    return
+  end
+
+  if flash_t>0 then
+    flash_t-=1
+    return
+  end
+
+  t+=1
+  if t>=2700 then
+    t=2700
+    won=true
+    gs=2
+    sfx(11)
+    return
+  end
+  spd=base_spd+base_spd*(t/2700)
+
+  pw=paddle_w()
+  if btn(0) then pmid=max(pw/2,pmid-pspd) end
+  if btn(1) then pmid=min(128-pw/2,pmid+pspd) end
+  px=pmid-pw/2
+
+  spawn_t-=1
+  if spawn_t<=0 then
+    spawn_t=36
+    add(itms,{x=flr(rnd(121)),y=0,c=rnd_col()})
+  end
+
+  for i=#itms,1,-1 do
+    local it=itms[i]
+    it.y+=spd
+    local caught=false
+    if it.y+7>=py and it.y<=py+7 then
+      if it.x+7>=px and it.x<=px+pw-1 then
+        caught=true
+      end
+    end
+    if caught then
+      caught_ct+=1
+      sfx(catch_sfx[it.c])
+      score+=colsc[it.c]
+      if it.c==3 then pseg=max(0,pseg-1)
+      elseif it.c==4 then pseg=min(5,pseg+1) lives=min(5,lives+1) end
+      add(last3,it.c)
+      if #last3>3 then deli(last3,1) end
+      if #last3==3 and last3[1]==last3[2] and last3[2]==last3[3] then
+        trigger_combo(it.c)
+        last3={}
+      end
+      del(itms,it)
+    elseif it.y>py+7 then
+      missed_ct+=1
+      lives-=1
+      if lives<=0 then
+        lives=0
+        gs=2
+        sfx(10)
+      end
+      del(itms,it)
+    end
+  end
+end
+
+function _draw()
+  if gs==0 then draw_title() return end
+  if gs==2 then draw_end() return end
+
+  if flash_t>0 then
+    cls(flash_c)
+    local txtcol=flash_c==6 and 0 or 7
+    print("combo",54,60,txtcol)
+    return
+  end
+  cls(0)
+  for it in all(itms) do ditem(it) end
+  dpaddle()
+  draw_hud()
+end
+__sfx__
+000800002405000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000800002605000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000800002905000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000800002b05000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000600001467500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0003000024160281602b1600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00030000261602a1602d1600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00030000281602c1602f1600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00030000291602d160301600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300002b1602f160321600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000c00002b06028060240600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000a000024060280602b0600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
