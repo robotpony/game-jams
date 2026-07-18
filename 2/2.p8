@@ -251,6 +251,7 @@ function enter_room(idx,side)
   sobj=nil
   lifty=topy
   liftdir=1
+  liftpause=0
   if not cur_room.seen then
     cur_room.seen=true
     nvisited=min(10,nvisited+1)
@@ -321,9 +322,15 @@ function hit_check()
 end
 
 function update_room()
-  lifty+=liftspd*liftdir
-  if lifty<=topy then lifty=topy liftdir=1
-  elseif lifty>=boty then lifty=boty liftdir=-1 end
+  if liftpause>0 then
+    liftpause-=1
+  else
+    lifty+=liftspd*liftdir
+    if lifty<=topy then lifty=topy liftdir=1 liftpause=30
+    elseif lifty>=boty then lifty=boty liftdir=-1 liftpause=30
+    elseif lifty==liftys[2] then liftpause=30
+    end
+  end
 
   for r in all(cur_room.robots) do update_robot(r) end
   hit_check()
@@ -332,11 +339,17 @@ function update_room()
     jt+=1
     px=mid(0,px+jdir*0.8,120)
     py=jy0-jh*4*jt*(jT-jt)/(jT*jT)
+    local cx=px+4
+    if cx>=liftx0 and cx<=liftx1 and lift_near(rfl) then
+      jumping=false
+      ronlift=true
+      py=lifty
+      return
+    end
     if jt>=jT then
       jumping=false
       py=jy0
-      local cx=px+4
-      if cx>=liftx0 and cx<=liftx1 and not lift_near(rfl) and invt<=0 then
+      if cx>=liftx0 and cx<=liftx1 and invt<=0 then
         fall_void()
       end
     end

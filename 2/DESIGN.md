@@ -104,6 +104,8 @@ A short (~9 frame / 300ms) input-frozen pause plays out on both sides of the sha
 
 **Lift shaft width** — The gap in the room floor where the centre lift travels is exactly as wide as the lift platform, so there's no visual mismatch between where the platform sits and where the floor actually opens up; walking into that gap while the lift isn't there falls through (see Collision below), consistently across the platform's whole footprint.
 
+**Lift dwell time** — The lift pauses briefly (~1s) each time it reaches one of the 3 floor-aligned positions before continuing, giving the player a real window to board it by walking in, or by jumping across the gap while it happens to be there (the jump's own reach otherwise always overshoots a stationary target inside the gap, so catching the lift only works if it's actually paused there when the arc crosses it).
+
 **Collision** — Player vs. robot: 1 HP loss plus a small knockback (a few px away from the robot) and a brief invulnerability window (~45 frames) before it can hit again. Player vs. lift shaft edge while not in the lift, on any floor (walking in, or a jump landing in it): 3 HP loss and a respawn at the room's entry door, same invulnerability window as a robot hit. Wrong letter-arrangement submission in the control room: 1 HP loss, no retry limit.
 
 **Puzzle-solving UI** — Control room renders one blank slot per letter of the secret word plus the player's collected letters below; directional input cycles the highlighted slot and selects which collected letter fills it, a confirm button checks the full arrangement against the target word.
