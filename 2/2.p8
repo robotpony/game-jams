@@ -141,6 +141,23 @@ function gen_floors()
     tries+=1
   until nrooms>=wlen or tries>50
 
+  -- space valid floors apart: wherever 2 valid floors land back-to-back,
+  -- blank out the second one, but only while there's still enough room-count
+  -- slack above wlen to spare -- never drops nrooms below what the puzzle
+  -- needs. Pre-existing runs of 2+ blanks are left alone (the "sometimes
+  -- more" case); this only ever adds gaps, never removes them.
+  local slack=nrooms-wlen
+  for i=2,nf do
+    if floors[i]~=0 and floors[i-1]~=0 then
+      local rc=floors[i]==3 and 2 or 1
+      if slack>=rc then
+        slack-=rc
+        nrooms-=rc
+        floors[i]=0
+      end
+    end
+  end
+
   word=words[flr(rnd(5))+1]
   rooms={}
   roomL={}
@@ -276,6 +293,20 @@ function update_robot(r)
   end
 end
 
+-- falling into the centre lift gap when the lift isn't there: costs hp and
+-- resets the player to this room's entry door, on any floor (there's no
+-- "floor below" to catch a fall from the bottom floor, so it's the same
+-- void either way, not a partial one-floor drop)
+function fall_void()
+  hp=max(0,hp-3)
+  invt=45
+  rfl=2
+  px=entry_side==0 and 116 or 4
+  py=floor_ground(2)-7
+  ronlift=false
+  jumping=false
+end
+
 -- player/robot collision: 1 hp, knockback, brief invulnerability; also ticks invt down
 function hit_check()
   if invt>0 then invt-=1 return end
@@ -301,7 +332,14 @@ function update_room()
     jt+=1
     px=mid(0,px+jdir*0.8,120)
     py=jy0-jh*4*jt*(jT-jt)/(jT*jT)
-    if jt>=jT then jumping=false py=jy0 end
+    if jt>=jT then
+      jumping=false
+      py=jy0
+      local cx=px+4
+      if cx>=liftx0 and cx<=liftx1 and not lift_near(rfl) and invt<=0 then
+        fall_void()
+      end
+    end
     return
   end
 
@@ -372,12 +410,8 @@ function update_room()
         px=nx
         ronlift=true
         py=lifty
-      elseif rfl<2 and invt<=0 then
-        hp=max(0,hp-3)
-        invt=45
-        rfl+=1
-        py=floor_ground(rfl)-7
-        px=nx
+      elseif invt<=0 then
+        fall_void()
       end
     else
       px=nx
