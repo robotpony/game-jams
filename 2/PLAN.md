@@ -1,6 +1,6 @@
 # Plan
 
-Phased implementation checklist for `2.p8`, based on [README.md](README.md) and [DESIGN.md](DESIGN.md). Phases 1–4 are built, including the corridor rework (corridors merged into the elevator screen, replacing an earlier separate-screen misreading of the spec). Phases 5–7 are pending. Design is finalized, no open questions remain blocking any phase.
+Phased implementation checklist for `2.p8`, based on [README.md](README.md) and [DESIGN.md](DESIGN.md). Phases 1–5 are built, including the corridor rework (corridors merged into the elevator screen, replacing an earlier separate-screen misreading of the spec). Phases 6–7 are pending. Design is finalized, no open questions remain blocking any phase.
 
 ## Phase 1: Elevator shaft & floor generation
 
@@ -46,11 +46,11 @@ Phased implementation checklist for `2.p8`, based on [README.md](README.md) and 
 
 ## Phase 5: Screens & flow
 
-- [ ] Title screen: call the shared `draw_title_card("#2 MISSION")` from [`../lib/title.lua`](../lib/title.lua) (colour-swatch strip, "'26 WARPED GAME JAM", "#2 MISSION", blinking start prompt); already built and used by games 1 and 3, paste `blink()` (`lib/screen.lua`) and `draw_title_card()` into `2.p8`'s `__lua__` section rather than hand-rolling
-- [ ] Room enter/exit fade transitions; game start/end flash
-- [ ] Game over screen: win/loss headline, final score (`100 * letters_collected + 2 * seconds_remaining`, 0 on loss) — `draw_gameover()` already exists as a bare functional stub from Phase 4 (plain text headline/score/prompt, no fade or visual polish), so this phase's job is presentation, not the underlying win/loss/score logic
-- [ ] HUD: line 1 timer + floor level, line 2 letters collected (e.g. "LETTERS 4/10")
-- [ ] Verify: full loop is playable start to finish, title → shaft → rooms → control room → game over → title
+- [x] Title screen: call the shared `draw_title_card("#2 MISSION")` from [`../lib/title.lua`](../lib/title.lua) (colour-swatch strip, "'26 WARPED GAME JAM", "#2 MISSION", blinking start prompt) — already built since Phase 1 (this checkbox was stale, not a Phase 5 gap)
+- [x] Room enter/exit fade transitions; game start/end flash — `draw_overlay()` renders a shrinking black iris (top/bottom bars) over `trans_t`'s existing 9-frame window for shaft↔room/control-room crossings, and a brief white `flash_t` pop for game start (`new_game()`) and end (win in `update_control()`, loss in `_update()`). A deliberate scope call: single-phase reveal-only, not a true fade-out-then-fade-in crossfade (the state already switches the instant a transition starts, and a real palette-based crossfade would cost meaningfully more tokens for a jam-scope visual) — see CLAUDE.md
+- [x] Game over screen: win/loss headline, final score (`100 * letters_collected + 2 * seconds_remaining`, 0 on loss) — `draw_gameover()` now has a colour band (green/red) behind the headline instead of Phase 4's plain text stub; win/loss/score logic is unchanged from Phase 4
+- [x] HUD: line 1 timer + floor level, line 2 letters collected (e.g. "LETTERS 4/10") — `draw_hud()`, shared by the shaft and room screens, replacing the temporary debug HUD (seed/floor/room-count). HP has no dedicated slot in DESIGN.md's 2-line layout, so it's folded onto the letters line rather than dropped; the control room keeps its own separate hp/time display (DESIGN.md treats it as a distinct UI, not the standard room HUD)
+- [ ] Verify (manual play-test): full loop is playable start to finish, title → shaft → rooms → control room → game over → title; fades/flashes read correctly at each transition; HUD values (timer, floor, letters, hp) are all readable and correct in both the shaft and room screens
 
 ## Phase 6: Visuals & sound polish
 

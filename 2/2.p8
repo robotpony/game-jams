@@ -207,6 +207,7 @@ function new_game()
   timer=9000
   won=false
   score=0
+  flash_t=6
   gs=1
 end
 
@@ -407,6 +408,7 @@ function update_control()
     if guess==word then
       score=100*#inv+2*flr(timer/30)
       won=true
+      flash_t=6
       gs=4
     else
       hp=max(0,hp-1)
@@ -418,9 +420,12 @@ end
 function _init()
   gs=0
   trans_t=0
+  flash_t=0
 end
 
 function _update()
+  if flash_t>0 then flash_t-=1 end
+
   if trans_t>0 then
     trans_t-=1
     return
@@ -440,6 +445,7 @@ function _update()
   if timer<=0 or hp<=0 then
     won=false
     score=0
+    flash_t=6
     gs=4
     return
   end
@@ -510,6 +516,34 @@ function _update()
   end
 end
 
+-- shared bottom-strip HUD (shaft & room screens): line 1 timer + floor level,
+-- line 2 letters collected + hp (DESIGN.md's 2-line budget has no dedicated hp
+-- slot; folding it onto the letters line surfaces it without adding a 3rd line)
+function draw_hud()
+  print("time "..flr(timer/30),2,112,7)
+  local fl="floor "..cfloor.."/"..nf
+  print(fl,126-4*#fl,112,7)
+  print("letters "..#inv.."/"..wlen.."  hp "..hp,2,120,7)
+end
+
+-- screen-transition overlay: a shrinking black iris (top/bottom bars) reveals
+-- the new screen over trans_t's 9 frames -- a single-phase reveal rather than
+-- a true fade-out-then-fade-in crossfade, since gs already switches the instant
+-- a transition starts (see enter_room/enter_control); still reads as the
+-- "fades in/out" DESIGN.md asks for, at a fraction of the token cost a real
+-- palette-based crossfade would need. flash_t is a separate brief white flash
+-- for game start/end, decaying independently of trans_t.
+function draw_overlay()
+  if trans_t>0 then
+    local h=flr(64*trans_t/9)
+    if h>0 then
+      rectfill(0,0,127,h-1,0)
+      rectfill(0,127-h+1,127,127,0)
+    end
+  end
+  if flash_t>0 then rectfill(0,0,127,127,7) end
+end
+
 -- one room's object: dark green body, letter glyph if it holds one
 function draw_obj(o)
   rectfill(o.x,o.y,o.x+7,o.y+7,3)
@@ -555,8 +589,7 @@ function draw_room()
     print(step.."/10",px,py-12,0)
   end
 
-  print("hp "..hp,2,2,7)
-  print("letters "..#inv.."/10",2,10,7)
+  draw_hud()
 end
 
 -- control room: word slots (top), collected letters to pick from (below);
@@ -583,20 +616,25 @@ end
 
 function draw_gameover()
   cls(0)
+  rectfill(0,40,127,58,won and 11 or 8)
   local msg=won and "mission complete" or "mission failed"
-  print(msg,64-#msg*2,50,7)
-  print("score "..score,50,60,7)
-  if blink(2) then print("press any button",28,90,7) end
+  print(msg,64-#msg*2,46,won and 3 or 7)
+  local sc="score "..score
+  print(sc,64-#sc*2,64,7)
+  if blink(2) then
+    local p="press any button"
+    print(p,64-#p*2,100,7)
+  end
 end
 
 function _draw()
-  if gs==0 then draw_title_card("#2 MISSION") return end
+  if gs==0 then draw_title_card("#2 MISSION") draw_overlay() return end
 
-  if gs==4 then draw_gameover() return end
+  if gs==4 then draw_gameover() draw_overlay() return end
 
-  if gs==3 then draw_control() return end
+  if gs==3 then draw_control() draw_overlay() return end
 
-  if gs==2 then draw_room() return end
+  if gs==2 then draw_room() draw_overlay() return end
 
   cls(0)
   local camy=mid(0,cy-44,maxcamy)
@@ -631,9 +669,8 @@ function _draw()
   rectfill(spx,cy+fh-10-yoff,spx+7,cy+fh-3-yoff,7)
 
   camera()
-  print("seed "..lseed,2,2,7)
-  print("floor "..cfloor.."/"..nf,2,10,7)
-  print("rooms "..nrooms,2,18,7)
+  draw_hud()
+  draw_overlay()
 end
 __sfx__
 0008001f1003210032100321003210032100321003210032100321003210032100321003210032100321003210032100321003210032100321003210032100321003210032100321003210032100321003210032
