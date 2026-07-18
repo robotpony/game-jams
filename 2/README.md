@@ -34,12 +34,12 @@ Transitions: elevator movement implies scrolling by floor as it moves (constant 
 - Corridor: not a separate place, just the part of the elevator screen between the narrow shaft column and the screen's edge, on any floor with an open corridor on that side. Same blank background as the rest of the shaft. No objects or robots in it, just floor space to walk across; jumping there is just a faster way to cross it, since there's nothing to clear.
 - Secret word: 10 letters, picked per seed from a short hardcoded word list (`IMPOSSIBLE`, `INFILTRATE`, `DEMOLITION`, `ELECTRICAL`, `MECHANICAL`). One letter is placed in each of the first 10 valid rooms (in shaft order); every object in rooms beyond the 10th holds a health pickup instead. The control room sits behind the last valid room in the shaft, whatever that room's letter status.
 - Room persistence: once a room is generated, its state sticks. Objects already searched stay empty and robots keep their current position and pattern state if the player leaves and returns.
-- Placement rules: no more than 1 robot per floor side (left or right); no more than 2 items per floor side.
+- Placement rules: no more than 1 robot per floor side (left or right); no more than 2 items per floor side. A robot never crosses the centre lift gap; it's confined to the side of the floor it spawned on, for every movement pattern, including chase.
 - Search: standing in front of an object and holding up raises the player's hands. A comic-style bubble appears above the player with a progress bar, 0 to 10, about 1 second per step. At 10, the object's contents (health or a puzzle letter) are added to the player's inventory and the bubble disappears. Releasing up (or getting hit) pauses the bar at its current step rather than resetting it; holding up again in front of the same object resumes from there.
 - Robots, 3 movement patterns:
   - Stationary: looks left and right at random intervals, beeping on each look.
   - Patrol: moves left and right at some speed, pausing a random amount of time at each end.
-  - Chase: moves toward the player at a random speed if the player is on the same floor. If the player jumps over it, the robot pauses, "thinks" for about 1 second, then reverses direction.
+  - Chase: moves toward the player at a random speed if the player is on the same floor, confined to its own side of the centre lift gap (it won't follow the player across). If the player jumps over it, the robot pauses, "thinks" for about 1 second, then reverses direction.
 - Difficulty ramps with rooms found: robot speed and density scale up as the player collects more letters, similar in spirit to game 3's fall-speed ramp.
 - Puzzle solving: the control room shows one blank slot per letter of the secret word. The player arranges their collected letters into the blanks (directional input to cycle/place) and submits. A correct arrangement wins immediately; a wrong one costs 1 HP and can be retried without limit.
 

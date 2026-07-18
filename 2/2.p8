@@ -70,6 +70,7 @@ end
 
 -- secret word & room object density
 words={"impossible","infiltrate","demolition","electrical","mechanical"}
+wlen=#words[1] -- all words are the same length; ties room/letter counts to real data, not a magic number
 objp={{60,90},{40,75},{20,60},{5,35}} -- per pattern: thresholds for 0/1/2 objects
 robp={20,35,55,75}                    -- per pattern: % chance a floor side gets a robot
 base_spd=0.6                          -- robot base speed, before the rooms-found ramp
@@ -106,7 +107,6 @@ function gen_room(letter)
         local rb={fl=fl,side=side,x=sx+10+flr(rnd(40)),y=floor_ground(fl)-7,
           pat=flr(rnd(3))+1,dir=flr(rnd(2))*2-1,t=30+flr(rnd(60)),flee=0,jumped=false,
           spd=base_spd*(0.7+rnd(0.6))}
-        if rb.pat==2 then rb.x0=sx+4 rb.x1=sx+56 end
         add(room.robots,rb)
       end
     end
@@ -139,7 +139,7 @@ function gen_floors()
       elseif r>0 then nrooms+=1 end
     end
     tries+=1
-  until nrooms>=10 or tries>50
+  until nrooms>=wlen or tries>50
 
   word=words[flr(rnd(5))+1]
   rooms={}
@@ -150,12 +150,12 @@ function gen_floors()
     local r=floors[i]
     if r==1 or r==3 then
       idx+=1
-      rooms[idx]=gen_room(idx<=10 and sub(word,idx,idx) or nil)
+      rooms[idx]=gen_room(idx<=wlen and sub(word,idx,idx) or nil)
       roomL[i]=idx
     end
     if r==2 or r==3 then
       idx+=1
-      rooms[idx]=gen_room(idx<=10 and sub(word,idx,idx) or nil)
+      rooms[idx]=gen_room(idx<=wlen and sub(word,idx,idx) or nil)
       roomR[i]=idx
     end
   end
@@ -204,7 +204,20 @@ function new_game()
   nvisited=0
   invt=0
   jumping=false
+  timer=9000
+  won=false
+  score=0
   gs=1
+end
+
+-- deep wall of the shaft's last valid room; only reachable from there
+function enter_control()
+  gs=3
+  slots={}
+  csel=1
+  ssel=1
+  trans_t=9
+  sfx(1,2)
 end
 
 -- enter the room behind a shaft corridor; side: 0=left corridor, 1=right
@@ -232,7 +245,10 @@ end
 -- speed multiplier for robot movement: ramps with rooms found, capped at 10
 function rmul() return 1+min(nvisited,10)/10 end
 
+-- a robot never crosses the centre lift gap: it's confined to the 4-56/72-124
+-- span on whichever side (r.side) it spawned, across all 3 movement patterns
 function update_robot(r)
+  local lo,hi=r.side==0 and 4 or 72,r.side==0 and 56 or 124
   if r.pat==1 then
     r.t-=1
     if r.t<=0 then r.dir=-r.dir r.t=30+flr(rnd(60)) end
@@ -240,7 +256,7 @@ function update_robot(r)
     if r.t>0 then r.t-=1
     else
       r.x+=r.dir*r.spd*rmul()
-      if r.x<=r.x0 or r.x>=r.x1 then r.dir=-r.dir r.t=15+flr(rnd(30)) end
+      if r.x<=lo or r.x>=hi then r.dir=-r.dir r.t=15+flr(rnd(30)) end
     end
   else
     if r.fl==rfl and abs(px-r.x)<=6 then
@@ -251,10 +267,10 @@ function update_robot(r)
     if r.t>0 then r.t-=1
     elseif r.flee>0 then
       r.flee-=1
-      r.x=mid(0,r.x+(px>r.x and -1 or 1)*r.spd*rmul(),120)
+      r.x=mid(lo,r.x+(px>r.x and -1 or 1)*r.spd*rmul(),hi)
     elseif r.fl==rfl then
       r.dir=px>r.x and 1 or -1
-      r.x=mid(0,r.x+r.dir*r.spd*rmul(),120)
+      r.x=mid(lo,r.x+r.dir*r.spd*rmul(),hi)
     end
   end
 end
@@ -264,7 +280,7 @@ function hit_check()
   if invt>0 then invt-=1 return end
   for r in all(cur_room.robots) do
     if r.fl==rfl and px<r.x+8 and px+8>r.x and py<r.y+8 and py+8>r.y then
-      hp-=1
+      hp=max(0,hp-1)
       invt=45
       px=mid(0,px+(px<r.x and -6 or 6),120)
       return
@@ -333,6 +349,10 @@ function update_room()
   end
 
   if rfl==2 then
+    if cur_idx==nrooms then
+      if entry_side==0 and px<=0 and btn(0) then enter_control() return end
+      if entry_side==1 and px>=120 and btn(1) then enter_control() return end
+    end
     if entry_side==0 and px>=120 and btn(1) then
       gs=1 spx=0 trans_t=9 sfx(1,2) return
     end
@@ -352,7 +372,7 @@ function update_room()
         ronlift=true
         py=lifty
       elseif rfl<2 and invt<=0 then
-        hp-=3
+        hp=max(0,hp-3)
         invt=45
         rfl+=1
         py=floor_ground(rfl)-7
@@ -360,6 +380,37 @@ function update_room()
       end
     else
       px=nx
+    end
+  end
+end
+
+-- control room: arrange collected letters (inv) into slots to match word
+function update_control()
+  if #inv>0 then
+    if btnp(0) then csel=(csel-2)%#inv+1 end
+    if btnp(1) then csel=csel%#inv+1 end
+  end
+  if btnp(2) then ssel=(ssel-2)%wlen+1 end
+  if btnp(3) then ssel=ssel%wlen+1 end
+  if btnp(4) then
+    if slots[ssel] then
+      slots[ssel]=nil
+    elseif inv[csel] then
+      local used=false
+      for i=1,wlen do if slots[i]==csel then used=true end end
+      if not used then slots[ssel]=csel end
+    end
+  end
+  if btnp(5) then
+    local guess=""
+    for i=1,wlen do guess=guess..(slots[i] and inv[slots[i]] or "_") end
+    if guess==word then
+      score=100*#inv+2*flr(timer/30)
+      won=true
+      gs=4
+    else
+      hp=max(0,hp-1)
+      slots={}
     end
   end
 end
@@ -377,6 +428,24 @@ function _update()
 
   if gs==0 then
     if any_btnp() then new_game() end
+    return
+  end
+
+  if gs==4 then
+    if any_btnp() then gs=0 end
+    return
+  end
+
+  timer-=1
+  if timer<=0 or hp<=0 then
+    won=false
+    score=0
+    gs=4
+    return
+  end
+
+  if gs==3 then
+    update_control()
     return
   end
 
@@ -490,8 +559,42 @@ function draw_room()
   print("letters "..#inv.."/10",2,10,7)
 end
 
+-- control room: word slots (top), collected letters to pick from (below);
+-- z places/clears the selected letter, x submits the arrangement
+function draw_control()
+  cls(0)
+  print("assemble the word",26,4,7)
+  for i=1,wlen do
+    local bx=9+(i-1)*11
+    rect(bx,20,bx+9,31,i==ssel and 10 or 7)
+    print(slots[i] and inv[slots[i]] or "_",bx+3,24,7)
+  end
+  print("letters",46,40,7)
+  for j=1,#inv do
+    local bx=9+(j-1)*11
+    local used=false
+    for i=1,wlen do if slots[i]==j then used=true end end
+    print(inv[j],bx+3,50,used and 5 or (j==csel and 10 or 7))
+  end
+  print("z place/clear  x submit",8,100,7)
+  print("hp "..hp,2,112,7)
+  print("time "..flr(timer/30),90,112,7)
+end
+
+function draw_gameover()
+  cls(0)
+  local msg=won and "mission complete" or "mission failed"
+  print(msg,64-#msg*2,50,7)
+  print("score "..score,50,60,7)
+  if blink(2) then print("press any button",28,90,7) end
+end
+
 function _draw()
   if gs==0 then draw_title_card("#2 MISSION") return end
+
+  if gs==4 then draw_gameover() return end
+
+  if gs==3 then draw_control() return end
 
   if gs==2 then draw_room() return end
 

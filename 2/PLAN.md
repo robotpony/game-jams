@@ -1,6 +1,6 @@
 # Plan
 
-Phased implementation checklist for `2.p8`, based on [README.md](README.md) and [DESIGN.md](DESIGN.md). Phases 1–3 are built, including the corridor rework (corridors merged into the elevator screen, replacing an earlier separate-screen misreading of the spec). Phases 4–7 are pending. Design is finalized, no open questions remain blocking any phase.
+Phased implementation checklist for `2.p8`, based on [README.md](README.md) and [DESIGN.md](DESIGN.md). Phases 1–4 are built, including the corridor rework (corridors merged into the elevator screen, replacing an earlier separate-screen misreading of the spec). Phases 5–7 are pending. Design is finalized, no open questions remain blocking any phase.
 
 ## Phase 1: Elevator shaft & floor generation
 
@@ -29,6 +29,7 @@ Phased implementation checklist for `2.p8`, based on [README.md](README.md) and 
 - [x] Stationary pattern (`pat==1`): random-interval left/right look (`r.dir` flips every 30-90 frames). Beep-on-look SFX deferred to Phase 6 alongside the rest of this game's SFX identity — not wired up yet, only the visual look-flip
 - [x] Patrol pattern (`pat==2`): left/right movement between `r.x0`/`r.x1` (its side's floor span), random pause (15-45 frames) at each end
 - [x] Chase pattern (`pat==3`): moves toward the player when `r.fl==rfl`; on overlap while the player is jumping, pauses 30 frames then flees the player's position for 20 frames before resuming the chase
+- [x] All 3 patterns are confined to their spawn side of the room, never crossing the centre lift gap (fixed after the initial Phase 3 pass, which only confined patrol; chase/flee could walk straight across since their movement wasn't clamped to a side)
 - [x] Placement rule: max 1 robot per floor side, rolled per side at generation time (`robp` probability table, indexed by the room's existing density pattern so heavier rooms get both more objects and more robots)
 - [x] Player/robot collision (`hit_check()`): 1 HP loss, small knockback (6px away from the robot), 45-frame invulnerability (`invt`, also gates the lift-fall hazard so a fall can't immediately cascade through multiple floors); player sprite flickers while invulnerable
 - [x] Difficulty ramp: `rmul()` returns `1 + min(nvisited,10)/10`, applied to `r.spd` every frame a robot moves (patrol and chase); `nvisited` increments the first time each room is entered, capped at 10. Density itself is NOT re-scaled live by rooms found — rooms are still all generated upfront in `gen_floors()`, before any room has been visited, so each room's density pattern (1-4, chosen at generation) is the only density lever; this is a deliberate scope call against DESIGN.md's prose (which reads as speed+density), following the DESIGN.md formula (speed only) as the more precise source
@@ -36,18 +37,18 @@ Phased implementation checklist for `2.p8`, based on [README.md](README.md) and 
 
 ## Phase 4: Puzzle & win condition
 
-- [ ] Secret word picked per seed from the 5-word list (`impossible`, `infiltrate`, `demolition`, `electrical`, `mechanical`); one letter assigned per first-10 valid rooms in shaft order
-- [ ] Puzzle solvability validated at generation time (word length and room count always line up), not just hoped for
-- [ ] Control room reachable from the last valid room in the shaft
-- [ ] Control room UI: blank slot per letter, player arranges collected letters, submits
-- [ ] Win: correct arrangement submitted. Wrong arrangement: 1 HP loss, stays in control room, unlimited retries. Loss: timer (starts 300s/9000 frames, never resets) reaches 0, or lift fall (3 HP) / robot hits (1 HP) bring HP to 0
-- [ ] Verify: a generated seed is always solvable; both win and loss paths are reachable; a wrong submission costs HP but doesn't end the run
+- [x] Secret word picked per seed from the 5-word list (`impossible`, `infiltrate`, `demolition`, `electrical`, `mechanical`); one letter assigned per first-10 valid rooms in shaft order
+- [x] Puzzle solvability validated at generation time (word length and room count always line up), not just hoped for — `wlen` (derived from `words[1]`'s length, not a hardcoded `10`) drives both the `nrooms>=wlen` generation-retry threshold and the `idx<=wlen` letter-assignment cutoff, so the two can't drift apart even if the word list changes later
+- [x] Control room reachable from the last valid room in the shaft — `enter_control()`, triggered by reaching the deep wall (opposite the entry door) of the room whose index equals `nrooms`
+- [x] Control room UI: blank slot per letter, player arranges collected letters, submits
+- [x] Win: correct arrangement submitted. Wrong arrangement: 1 HP loss, stays in control room, unlimited retries. Loss: timer (starts 300s/9000 frames, never resets) reaches 0, or lift fall (3 HP) / robot hits (1 HP) bring HP to 0
+- [ ] Verify (manual play-test): a generated seed is always solvable; both win and loss paths are reachable; a wrong submission costs HP but doesn't end the run; the control room's deep wall is only reachable behind the true last room, not any letter room
 
 ## Phase 5: Screens & flow
 
 - [ ] Title screen: call the shared `draw_title_card("#2 MISSION")` from [`../lib/title.lua`](../lib/title.lua) (colour-swatch strip, "'26 WARPED GAME JAM", "#2 MISSION", blinking start prompt); already built and used by games 1 and 3, paste `blink()` (`lib/screen.lua`) and `draw_title_card()` into `2.p8`'s `__lua__` section rather than hand-rolling
 - [ ] Room enter/exit fade transitions; game start/end flash
-- [ ] Game over screen: win/loss headline, final score (`100 * letters_collected + 2 * seconds_remaining`, 0 on loss)
+- [ ] Game over screen: win/loss headline, final score (`100 * letters_collected + 2 * seconds_remaining`, 0 on loss) — `draw_gameover()` already exists as a bare functional stub from Phase 4 (plain text headline/score/prompt, no fade or visual polish), so this phase's job is presentation, not the underlying win/loss/score logic
 - [ ] HUD: line 1 timer + floor level, line 2 letters collected (e.g. "LETTERS 4/10")
 - [ ] Verify: full loop is playable start to finish, title → shaft → rooms → control room → game over → title
 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Pico-8 game called "2 Mission" — an action/platform/puzzle game with Atari 2600 aesthetics, a vastly simplified remake of Impossible Mission (Epyx, 1984). The full spec is in [README.md](README.md), following [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
-**Status: in progress.** `2.p8` implements Phases 1–3 of [PLAN.md](PLAN.md): elevator shaft, floor generation (including corridors merged into the shaft screen, and the elevator only stopping at corridor floors), rooms, objects, search, jump, the lift-fall hazard, and robots. The puzzle/win condition, screens & flow, and visual/sound polish aren't built yet — keep following README.md and [DESIGN.md](DESIGN.md) for those.
+**Status: in progress.** `2.p8` implements Phases 1–4 of [PLAN.md](PLAN.md): elevator shaft, floor generation (including corridors merged into the shaft screen, and the elevator only stopping at corridor floors), rooms, objects, search, jump, the lift-fall hazard, robots, the control room puzzle, and the win/loss/timer/score logic (with a bare-bones game-over screen, not yet the polished Phase 5 version). Screens & flow polish and visual/sound polish aren't built yet — keep following README.md and [DESIGN.md](DESIGN.md) for those.
 
 ## Development
 
@@ -37,19 +37,21 @@ These constraints shape every implementation decision:
 - Win: submit the correct letter arrangement in the control room (behind the shaft's last valid room). Loss: timer (300s) reaches 0, or HP (starts at 5; robot hit −1, fall −3, wrong submission −1) reaches 0
 - All values are finalized in README.md and DESIGN.md (health/damage amounts, timer, palette, SFX, score formula); implement from those directly rather than re-deriving them
 
-## Architecture (Phases 1–3)
+## Architecture (Phases 1–4)
 
-`2.p8` implements the standard Pico-8 callback structure with the title screen, elevator shaft (corridors included), and puzzle rooms built:
+`2.p8` implements the standard Pico-8 callback structure with the title screen, elevator shaft (corridors included), puzzle rooms, the control room, and game over all built:
 
 ```lua
 _init()   -- gs=0 (title), trans_t=0
-_update() -- title input; elevator move/auto-stop/wall-walk (gs==1); update_room() (gs==2)
-_draw()   -- title card; shaft scroll + rendering (gs==1); draw_room() (gs==2)
+_update() -- title input; gs=4 input; timer tick + loss check; update_control() (gs==3);
+          -- update_room() (gs==2); elevator move/auto-stop/wall-walk (gs==1)
+_draw()   -- title card; draw_gameover() (gs==4); draw_control() (gs==3);
+          -- draw_room() (gs==2); shaft scroll + rendering (gs==1)
 ```
 
-`gs` values: 0=title, 1=elevator shaft, 2=puzzle room (3=control room, 4=game over, not yet implemented).
+`gs` values: 0=title, 1=elevator shaft, 2=puzzle room, 3=control room, 4=game over.
 
-**Floor/room generation** — `gen_floors()` seeds `lseed=flr(rnd(32767))`, `srand(lseed)`, then rolls `floors[i]` (1–16) as 0=neither, 1=left, 2=right, 3=both (both = 2 independent rooms toward the total). Re-rolls the seed until `nrooms>=10`, capped at 50 tries as a safety net (expected rooms per 16 floors is well above 10, so this practically always resolves on the first try).
+**Floor/room generation** — `gen_floors()` seeds `lseed=flr(rnd(32767))`, `srand(lseed)`, then rolls `floors[i]` (1–16) as 0=neither, 1=left, 2=right, 3=both (both = 2 independent rooms toward the total). Re-rolls the seed until `nrooms>=wlen`, capped at 50 tries as a safety net (expected rooms per 16 floors is well above 10, so this practically always resolves on the first try). `wlen=#words[1]` (all 5 words are 10 letters, so any of them works as the canonical length) drives both this threshold and the `idx<=wlen` letter-assignment cutoff later in the same function — deriving both from the same value, rather than hardcoding `10` in two places, is what makes solvability (room count always covers the word length) structurally guaranteed instead of just true by coincidence.
 
 **Elevator vertical movement** — `cy` is the car's continuous world y; `cfloor`/`targety` track the discrete floor and its target y. Holding up/down (`btn(2)`/`btn(3)`) only responds while `spx` is within the narrow column (`carl` to `carr-7` — see Shaft walking); it calls `next_stop(dir)` rather than just `cfloor+dir`, so the car skips over "neither" floors and only ever targets one with a corridor. `next_stop` scans floor-by-floor in the given direction until it finds one where `floors[i]~=0`, or runs off the shaft's physical end (in which case the car just doesn't move — it can never park on a "neither" floor, even at floor 1 or 16). Arrival (`cy==targety`) snaps `moving=false` and re-clamps `spx` via `shaft_bounds()`, in case the new floor's corridor layout differs from the one just left.
 
@@ -59,7 +61,7 @@ _draw()   -- title card; shaft scroll + rendering (gs==1); draw_room() (gs==2)
 
 **Rendering (placeholder)** — `carl`/`carr` bound the shaft's interior column, where the car (`rectfill`+`rect` outline, sky blue/white) travels, with a small solid-white square drawn at `spx` on top of it representing the player. Per floor, each side independently renders one of two looks: a closed side gets the solid `wt`-thick navy wall plus, beyond it, `draw_concrete()`'s grey coursed-mortar backdrop (drawn once for the full shaft height, before the per-floor loop); an open-corridor side instead gets that whole span (from the shaft column to the screen edge) painted blank/black, overwriting the concrete there, with a thin white door frame at the true screen edge (x=0-3 or x=124-127) and a floor/ceiling line at each floor's top edge (matching the shaft column's own per-floor `line(carl,y,carr,y,1)`, extended the same navy colour across the corridor's full width) so the void reads as stacked floors rather than one blank shaft. All flat rects/lines, not sprites yet; real tile/sprite art is Phase 6 work. A debug HUD (seed, current floor, room count) is temporary, replaced by the real HUD in Phase 5.
 
-**Room/object generation** — `gen_floors()` also builds, per seed: `word` (one of the 5-word list), and `rooms` (array indexed 1..nrooms, one entry per valid corridor in shaft order — a "both" floor adds its left room before its right). `roomL[i]`/`roomR[i]` map a shaft floor back to its room index. `gen_room(letter)` rolls one of 4 density patterns (`objp` thresholds) and places 0-2 objects per of the room's 6 floor-sides (3 floors × left/right of the lift); if `letter` is non-nil (room index <=10) it's assigned to one random object in the room (force-adding one object first if the room rolled zero). Every non-letter object always yields health; nothing is ever truly empty.
+**Room/object generation** — `gen_floors()` also builds, per seed: `word` (one of the 5-word list), and `rooms` (array indexed 1..nrooms, one entry per valid corridor in shaft order — a "both" floor adds its left room before its right). `roomL[i]`/`roomR[i]` map a shaft floor back to its room index. `gen_room(letter)` rolls one of 4 density patterns (`objp` thresholds) and places 0-2 objects per of the room's 6 floor-sides (3 floors × left/right of the lift); if `letter` is non-nil (room index <=wlen) it's assigned to one random object in the room (force-adding one object first if the room rolled zero). Every non-letter object always yields health; nothing is ever truly empty.
 
 **Room persistence** — `rooms[idx]` is generated once in `gen_floors()` and never regenerated; `enter_room()` just points `cur_room` at the existing table (and `cur_idx` at its index, for the exit call), so `obj.found`/`obj.prog` mutations from a previous visit are still there.
 
@@ -79,10 +81,10 @@ _draw()   -- title card; shaft scroll + rendering (gs==1); draw_room() (gs==2)
 
 **Lift-fall hazard** — walking into the misaligned lift column (not `lift_near(rfl)`, not jumping) no longer blocks movement: if `rfl<2` and the player isn't already invulnerable (`invt<=0`), it costs 3 HP, drops `rfl` by one floor, and re-grounds `py`. The `invt<=0` guard (shared with robot-hit invulnerability, see below) exists specifically to stop a single unbroken hold-toward-the-gap input from cascading through 2 floors in as many frames — after one fall the player gets the same 45-frame grace window a robot hit gives. On the bottom floor (`rfl==2`) there's nowhere to fall to, so misaligned crossing there is still simply blocked, same as before jump/falling existed.
 
-**Robots (`cur_room.robots`)** — generated in `gen_room()` alongside objects: each of the room's 6 floor-sides independently rolls a robot via `robp[pat]` (a % chance, indexed by the same density pattern that drives that room's object counts, so denser rooms get more of both), capped at 1 per side by construction (it's a single roll, not a loop). Pattern is uniform-random 1-3 (stationary/patrol/chase) independent of density. `update_robot(r)`, called for every robot every frame regardless of player state:
+**Robots (`cur_room.robots`)** — generated in `gen_room()` alongside objects: each of the room's 6 floor-sides independently rolls a robot via `robp[pat]` (a % chance, indexed by the same density pattern that drives that room's object counts, so denser rooms get more of both), capped at 1 per side by construction (it's a single roll, not a loop). Pattern is uniform-random 1-3 (stationary/patrol/chase) independent of density. `update_robot(r)`, called for every robot every frame regardless of player state, opens by computing `lo,hi=r.side==0 and 4 or 72, r.side==0 and 56 or 124` — the same per-side span patrol always used for `r.x0`/`r.x1` (now folded into this shared computation instead of stored per-robot), reused as the movement clamp for all 3 patterns so a robot can never walk across the centre lift gap (`liftx0`/`liftx1`, 58-69) onto the room's other side, regardless of pattern:
 - **Stationary** (`pat==1`) — flips `r.dir` every 30-90 frames (`r.t` countdown), no movement; this is the look-left/right cue. The look SFX from README's spec is Phase 6 work (see SFX slots below), not wired up yet — only the visual flip.
-- **Patrol** (`pat==2`) — walks between `r.x0`/`r.x1` (its spawn side's floor span) at `r.spd*rmul()`, reversing and pausing 15-45 frames (`r.t`) at each end.
-- **Chase** (`pat==3`) — while `r.fl==rfl`, moves toward `px` at `r.spd*rmul()`. If the player is `jumping` and overlaps the robot's x (`abs(px-r.x)<=6`) and it hasn't already triggered this pass (`r.jumped`), it "thinks" for 30 frames (`r.t`, no movement) then flees the player's x for 20 frames (`r.flee`) before resuming the chase; `r.jumped` resets once the player's x moves away, so a second jump-over later in the same encounter can retrigger it.
+- **Patrol** (`pat==2`) — walks between `lo`/`hi` (its spawn side's floor span) at `r.spd*rmul()`, reversing and pausing 15-45 frames (`r.t`) at each end.
+- **Chase** (`pat==3`) — while `r.fl==rfl`, moves toward `px` at `r.spd*rmul()`, clamped to `lo`/`hi` same as patrol — a robot chasing from its own side simply stops at the gap rather than following the player across it. If the player is `jumping` and overlaps the robot's x (`abs(px-r.x)<=6`) and it hasn't already triggered this pass (`r.jumped`), it "thinks" for 30 frames (`r.t`, no movement) then flees the player's x for 20 frames (`r.flee`, also clamped to `lo`/`hi`) before resuming the chase; `r.jumped` resets once the player's x moves away, so a second jump-over later in the same encounter can retrigger it.
 
 Each robot's `spd` is randomized at generation (`base_spd*(0.7 to 1.3)`), matching README's "moves at a random speed" for chase; `rmul()` — `1 + min(nvisited,10)/10` — is the shared difficulty-ramp multiplier applied on top of that at movement time (see Difficulty ramp below), so already-generated robots speed up live as the run progresses rather than needing regeneration.
 
@@ -91,6 +93,14 @@ Each robot's `spd` is randomized at generation (`base_spd*(0.7 to 1.3)`), matchi
 **Difficulty ramp** — `nvisited` (0-10) increments the first time each room is entered (`cur_room.seen` guards against re-counting a revisit), tracked via `enter_room()`. `rmul()` turns that into the DESIGN.md formula `1 + rooms_found/10` and is applied to robot movement speed live, every frame, rather than baked into `r.spd` at generation. Density is deliberately *not* re-scaled by `nvisited`: all rooms are generated upfront in `gen_floors()` before any room has been visited (0 rooms found at that point), so there's no live "rooms found so far" signal available at generation time to scale density against. Each room's density pattern (1-4, chosen once at generation, drives both `objp` and `robp`) is the only density lever this cart has; that's a scope call against DESIGN.md's prose ("robot speed **and density** scale up"), following its precise formula (`robot_spd` only) as the more authoritative source over the looser prose description.
 
 **Search** — `sobj` (or nil) is the object currently being searched, recomputed fresh every frame rather than toggled: each frame finds the front, unfound object on `rfl` within `abs(px-o.x)<=6`, and only advances (`prog+=1`, sets `sobj`) while `btn(2)` is held that same frame. Releasing up, walking away, or the floor changing all just stop the increment — `prog` lives on the object itself, so it's never lost, only paused. At 300 (10 steps × 30 frames) it yields (`inv` gets the letter, or `hp` gets +2 capped at 5) and marks `obj.found=true`. Searching pre-empts movement, lift-boarding, and jumping entirely (an early `return` while `btn(2) and fo`); jumping is checked afterward via `btnp(2)`, so a held-up search always wins over a fresh up-press when both are momentarily true.
+
+**Control room entry (deep wall)** — Every room already has one impassable "deep" wall opposite its entry door (the far edge the player never reaches under normal play, since `px` is clamped to 0-120 and nothing previously handled reaching that clamp). For the single room where `cur_idx==nrooms` (the last valid room generated, in shaft order — always a real room, whether or not it happens to carry a letter, since idx runs 1..nrooms independent of the `wlen` letter cutoff), reaching that deep wall while still walking into it (`entry_side==0` needs `px<=0 and btn(0)`; `entry_side==1` needs `px>=120 and btn(1)` — continuing the same direction the player entered with, not reversing) calls `enter_control()` instead of leaving it as a dead stop. This check sits inside the existing `if rfl==2 then ... end` block in `update_room()`, alongside (but before) the shaft-exit checks, since the two use opposite directions/edges and can't both fire the same frame.
+
+**Control room (`gs==3`)** — `enter_control()` sets `slots={}` (array 1..wlen, each nil or an index into `inv`), `csel=1` (cursor over `inv`, the pool of collected letters), `ssel=1` (cursor over `slots`), plus the same `trans_t=9`/door-SFX pattern every other screen transition uses. `update_control()`: left/right (`btnp(0)`/`btnp(1)`) cycle `csel` through all of `inv` (1-indexed wraparound via `(csel-2)%#inv+1` / `csel%#inv+1`), including already-placed letters — placing one twice is simply a no-op (see below), not prevented at the cursor level, to avoid a second "skip used letters" pass. Up/down (`btnp(2)`/`btnp(3)`) cycle `ssel` through `slots` the same way. `btnp(4)` ("Z") toggles the targeted slot: clears it if occupied, otherwise places `inv[csel]` there provided that inventory index isn't already sitting in some other slot (checked by scanning `slots`). `btnp(5)` ("X") submits: builds a guess string from `slots` (unfilled slots contribute `"_"`, which can never equal a real letter, so an incomplete arrangement just reads as wrong rather than needing a separate completeness check) and compares it to `word`. A match sets `score`, `won=true`, `gs=4`; a miss costs 1 HP (`max(0,hp-1)`) and clears `slots` back to empty so the player re-places from scratch — README only requires "costs 1 HP, can be retried without limit," not that partial placement survives a wrong guess, and clearing is simpler than tracking which letters to leave in place.
+
+**Timer & loss condition** — `timer` (frames remaining, starts at 9000 = 300s at 30fps, set in `new_game()`) ticks down once per frame centrally in `_update()`, after the `gs==0`/`gs==4` early-outs but before dispatching to `update_control()`/`update_room()`/the elevator logic — so it runs across gs 1/2/3 uniformly without each of those needing its own decrement. The same central spot checks `timer<=0 or hp<=0` and, if either, sets `won=false`, `score=0`, `gs=4` and returns before that frame's gameplay update runs. HP-reducing spots (`hit_check()`'s robot hit, the lift-fall hazard, a wrong control-room submission) all clamp with `max(0,hp-n)` so `hp` never reads negative in the one frame between the damage and the next frame's centralized check catching it.
+
+**Game over (`gs==4`, bare stub)** — `draw_gameover()` prints a plain win/loss headline (`won and "mission complete" or "mission failed"`) and `score`, no fade or styling; `_update()`'s `gs==4` branch returns to the title screen (`gs=0`) on `any_btnp()`, matching the state table (game over exits to title on any button, title exits to a fresh `new_game()` on any button — two separate any-button presses, not one). `score` is set to `100*#inv+2*flr(timer/30)` on a win (inside `update_control()`'s submit check) or `0` on any loss path. This screen exists to make Phase 4's win/loss logic actually reachable and testable; Phase 5 replaces the presentation (fade, layout) without touching this logic.
 
 ### SFX slots
 
@@ -103,15 +113,18 @@ Each robot's `spd` is randomized at generation (`base_spd*(0.7 to 1.3)`), matchi
 
 ```lua
 -- screen
-gs        -- game state: 0=title 1=elevator shaft 2=puzzle room (3/4 not yet implemented)
+gs        -- game state: 0=title 1=elevator shaft 2=puzzle room 3=control room 4=game over
 trans_t   -- frames left in the shaft<->room arrival pause; freezes _update while >0
 
 -- floor/room generation
 nf, fh    -- floor count (16), px per floor / car height (24)
 lseed     -- current building's RNG seed
 floors    -- array 1..nf, corridor type per floor (0/1/2/3)
-nrooms    -- valid room count from the last generation (always >=10)
+nrooms    -- valid room count from the last generation (always >=wlen); the control room
+          -- sits behind rooms[nrooms], the last one generated in shaft order
 word      -- this seed's secret word (one of the 5-word list)
+wlen      -- #words[1]; word length, also the letter-assignment cutoff and the minimum
+          -- room count gen_floors() re-rolls for -- ties the two together structurally
 rooms     -- array 1..nrooms, {objs={...}, robots={...}, seen} per valid room, generated once
 roomL, roomR -- [shaft floor] -> room index, for corridor-entry lookup
 
@@ -157,6 +170,16 @@ jy0       -- room-only: py at jump start, the floor-ground y the player returns 
 invt      -- invulnerability frames remaining; also gates the lift-fall hazard
 nvisited  -- distinct rooms entered so far, capped at 10; drives rmul()
 base_spd, robp -- robot base speed anchor; per-density-pattern % chance of a robot per floor side
+
+-- control room (valid only while gs==3)
+slots     -- array 1..wlen, each nil or an index into inv (which collected letter fills that blank)
+csel      -- cursor into inv (left/right), the currently selected pool letter
+ssel      -- cursor into slots (up/down), the currently targeted blank
+
+-- timer, win/loss, score (persist across the whole run)
+timer     -- frames remaining, starts 9000 (300s @ 30fps); ticks down across gs 1/2/3, never resets
+won       -- true if gs==4 was reached via a correct control-room submission, not timer/hp hitting 0
+score     -- 100*#inv + 2*flr(timer/30) on a win, 0 on any loss; shown on the gs==4 screen
 ```
 
 ## Reusable code
