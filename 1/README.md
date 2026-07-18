@@ -1,6 +1,6 @@
 # 1 README
 
-This is a simple game built using Claude and Pico-8.
+This is a simple game built using Claude and Pico-8. Follows the format in [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
 The game looks like an Atari 2600 game. Colours, sprites, and fonts should approximate the Atari 2600 aesthetic using Pico-8's palette.
 
@@ -8,15 +8,14 @@ The game looks like an Atari 2600 game. Colours, sprites, and fonts should appro
 
 A maze game with a 60-second countdown timer per level. The player explores a single-screen maze collecting treasures and avoiding traps before finding the exit.
 
-## Screens
+## Scenes
 
-**Title screen**: Retro style. Shows "This is #1, a test game" with a blinking "press x to start" prompt and movement instructions. Start here on launch.
-
-**Game screen**: The maze occupies a 16×15 cell grid (128×120px). The HUD is a single line at the bottom (y=120–127): score on the left, level number in the center, timer on the right.
-
-**Transitioning**: Triggered by exit or teleport. An 18-frame black/white flicker, then the next level loads. The HUD remains visible.
-
-**Game over**: Triggered when score goes negative or timer reaches 0. Shows the final score. Press any button to return to the title screen.
+| Scene | Shows | Enters from | Exits to |
+| ----- | ----- | ------------ | -------- |
+| Title | "This is #1, a test game", blinking "press x to start" prompt, movement instructions | Startup | Any button → Game |
+| Game | 16×15 maze, HUD (score, level, timer) | Title, or Transitioning complete | Exit or teleport collected → Transitioning; score < 0 or timer = 0 → Game over |
+| Transitioning | HUD stays visible; 18-frame black/white flicker over the maze | Exit or teleport collected | Flicker complete → Game, next level loaded |
+| Game over | Final score | Score < 0, or timer reaches 0 | Any button → Title |
 
 ## Maze
 
@@ -56,7 +55,7 @@ Items are consumed on contact and become floor tiles.
 - Score goes negative (below 0).
 - Timer reaches 0.
 
-## Level seeding
+## Progression
 
 - First level seed is a random number chosen at game start.
 - Sequential exits advance to `current_seed + 1`.
@@ -66,7 +65,7 @@ Items are consumed on contact and become floor tiles.
 
 Simple beeps approximating Atari 2600 audio. Events that need sound: trap hit, treasure collected, teleport activated, exit reached. Movement sound is optional.
 
-## Tile visuals
+## Tile / sprite visuals
 
 All tiles are 8×8 pixels, drawn with primitives. Atari 2600-approximated colours using Pico-8's palette.
 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Pico-8 game called "2 Mission" — an action/platform/puzzle game with Atari 2600 aesthetics, a vastly simplified remake of Impossible Mission (Epyx, 1984). The full spec is in [README.md](README.md), following [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
-**Status: not yet built.** No `.p8` cartridge exists in this folder yet, and several spec details are still open (see README's Open questions). Implementation should follow README.md and [DESIGN.md](DESIGN.md); once a `2.p8` cart exists, this file should be expanded with the actual architecture (state variables, game states, tile/sprite IDs, SFX slots) the way [`../1/CLAUDE.md`](../1/CLAUDE.md) documents game 1.
+**Status: in progress.** `2.p8` implements Phases 1–3 of [PLAN.md](PLAN.md): elevator shaft, floor generation (including corridors merged into the shaft screen, and the elevator only stopping at corridor floors), rooms, objects, search, jump, the lift-fall hazard, and robots. The puzzle/win condition, screens & flow, and visual/sound polish aren't built yet — keep following README.md and [DESIGN.md](DESIGN.md) for those.
 
 ## Development
 
@@ -31,11 +31,133 @@ These constraints shape every implementation decision:
 
 ## Design summary (from README.md and DESIGN.md)
 
-- Player rides an elevator between randomized floors, then explores corridor-linked puzzle rooms (3 floors, centre lift, robots, searchable objects)
-- Robots have 3 behaviour patterns: stationary-look, patrol, chase (see DESIGN.md's Core system design)
-- Searching an object fills a 10-step progress bar (~1s/step) and yields health or a puzzle letter; 10 letters total spell a secret word
-- Win: reach the control room with the puzzle solved. Loss: timer reaches 0, or HP reaches 0
-- Several values (health pickup amount, robot/fall damage, timer start, palette, some SFX) aren't decided yet; don't invent them when implementing — check README's Open questions first
+- Player rides an elevator between 16 randomized floors (auto-stopping at each), then explores corridor-linked puzzle rooms (3 floors, centre lift, robots, searchable objects); a "both" floor leads to two independent rooms
+- Robots have 3 behaviour patterns: stationary-look, patrol, chase (see DESIGN.md's Core system design); speed/density ramp up with rooms found
+- Searching an object fills a 10-step progress bar (~1s/step, pausing rather than resetting if the player is hit) and yields +2 HP or a puzzle letter; one letter is guaranteed per each of the first 10 valid rooms, spelling a 10-letter secret word picked per seed from a 5-word list
+- Win: submit the correct letter arrangement in the control room (behind the shaft's last valid room). Loss: timer (300s) reaches 0, or HP (starts at 5; robot hit −1, fall −3, wrong submission −1) reaches 0
+- All values are finalized in README.md and DESIGN.md (health/damage amounts, timer, palette, SFX, score formula); implement from those directly rather than re-deriving them
+
+## Architecture (Phases 1–3)
+
+`2.p8` implements the standard Pico-8 callback structure with the title screen, elevator shaft (corridors included), and puzzle rooms built:
+
+```lua
+_init()   -- gs=0 (title), trans_t=0
+_update() -- title input; elevator move/auto-stop/wall-walk (gs==1); update_room() (gs==2)
+_draw()   -- title card; shaft scroll + rendering (gs==1); draw_room() (gs==2)
+```
+
+`gs` values: 0=title, 1=elevator shaft, 2=puzzle room (3=control room, 4=game over, not yet implemented).
+
+**Floor/room generation** — `gen_floors()` seeds `lseed=flr(rnd(32767))`, `srand(lseed)`, then rolls `floors[i]` (1–16) as 0=neither, 1=left, 2=right, 3=both (both = 2 independent rooms toward the total). Re-rolls the seed until `nrooms>=10`, capped at 50 tries as a safety net (expected rooms per 16 floors is well above 10, so this practically always resolves on the first try).
+
+**Elevator vertical movement** — `cy` is the car's continuous world y; `cfloor`/`targety` track the discrete floor and its target y. Holding up/down (`btn(2)`/`btn(3)`) only responds while `spx` is within the narrow column (`carl` to `carr-7` — see Shaft walking); it calls `next_stop(dir)` rather than just `cfloor+dir`, so the car skips over "neither" floors and only ever targets one with a corridor. `next_stop` scans floor-by-floor in the given direction until it finds one where `floors[i]~=0`, or runs off the shaft's physical end (in which case the car just doesn't move — it can never park on a "neither" floor, even at floor 1 or 16). Arrival (`cy==targety`) snaps `moving=false` and re-clamps `spx` via `shaft_bounds()`, in case the new floor's corridor layout differs from the one just left.
+
+**Shaft walking & corridors (merged into the shaft screen)** — `spx` is the player's x within the shaft screen, normally clamped to the narrow 16px column (`carl`=56 to `carr`=71), but `shaft_bounds()` extends that range out to the screen edge (0 or 120) on whichever side the current floor (`floors[cfloor]`) has an open corridor. There's no separate corridor screen: walking off the narrow column into an open side just keeps going, using the same `spx` movement, until it reaches `spx<=0` (left) or `spx>=120` (right), which calls `enter_room()`. A side with no corridor keeps `shaft_bounds()` clamped at the column edge, so movement just stops there (blocked, matching the solid wall drawn that side).
+
+**Camera** — `camy=mid(0,cy-44,maxcamy)` centres the car vertically and clamps to the shaft's total height (`nf*fh`) minus the 112px playfield, so the view never scrolls past the top or bottom floor.
+
+**Rendering (placeholder)** — `carl`/`carr` bound the shaft's interior column, where the car (`rectfill`+`rect` outline, sky blue/white) travels, with a small solid-white square drawn at `spx` on top of it representing the player. Per floor, each side independently renders one of two looks: a closed side gets the solid `wt`-thick navy wall plus, beyond it, `draw_concrete()`'s grey coursed-mortar backdrop (drawn once for the full shaft height, before the per-floor loop); an open-corridor side instead gets that whole span (from the shaft column to the screen edge) painted blank/black, overwriting the concrete there, with a thin white door frame at the true screen edge (x=0-3 or x=124-127) and a floor/ceiling line at each floor's top edge (matching the shaft column's own per-floor `line(carl,y,carr,y,1)`, extended the same navy colour across the corridor's full width) so the void reads as stacked floors rather than one blank shaft. All flat rects/lines, not sprites yet; real tile/sprite art is Phase 6 work. A debug HUD (seed, current floor, room count) is temporary, replaced by the real HUD in Phase 5.
+
+**Room/object generation** — `gen_floors()` also builds, per seed: `word` (one of the 5-word list), and `rooms` (array indexed 1..nrooms, one entry per valid corridor in shaft order — a "both" floor adds its left room before its right). `roomL[i]`/`roomR[i]` map a shaft floor back to its room index. `gen_room(letter)` rolls one of 4 density patterns (`objp` thresholds) and places 0-2 objects per of the room's 6 floor-sides (3 floors × left/right of the lift); if `letter` is non-nil (room index <=10) it's assigned to one random object in the room (force-adding one object first if the room rolled zero). Every non-letter object always yields health; nothing is ever truly empty.
+
+**Room persistence** — `rooms[idx]` is generated once in `gen_floors()` and never regenerated; `enter_room()` just points `cur_room` at the existing table (and `cur_idx` at its index, for the exit call), so `obj.found`/`obj.prog` mutations from a previous visit are still there.
+
+**Room entry/exit side** — `enter_room(idx,side)` spawns the player at `px=116` for `side==0` (left corridor: the room is to the shaft's left, so the player arrived walking left and is now beside the room's *right* wall, continuing left to go deeper) or `px=4` for `side==1` (mirror image). Exiting reverses this: `entry_side==0` requires walking right off `px>=120` (deeper is left, so leaving means backtracking right), `entry_side==1` requires walking left off `px<=0`. Either sets `gs=1` directly (no intermediate screen) and places `spx` at the matching shaft edge (0 or 120) to resume from.
+
+**Transition pause** — `trans_t` (frames remaining) is checked first thing in `_update()`; while positive it just decrements and returns, freezing all game logic for that many frames while `_draw()` keeps rendering the new screen normally. Set to 9 (~300ms at 30fps) by `enter_room()` and by the room's exit code, so both directions of the shaft↔room crossing pause briefly on arrival. Elevator floor stops don't set it.
+
+**Door SFX** — Plays once per shaft↔room crossing, both directions: inside `enter_room()`, and inside the room's exit-check right before `gs=1`.
+
+**Centre lift (rideable)** — `lifty` bounces between `topy`/`boty` (the top and bottom floor's stand-level, `liftys[]`) at `liftspd` px/frame. `lift_near(fl)` checks alignment within `liftt` px (8; widened from an initial 3, which made the near-window too short to reliably board or dash across). Walking into the lift's x-column (60-67) while `lift_near(rfl)` boards it (`ronlift=true`, `py` tracks `lifty` every frame); disembarking requires directional input while `lift_near` is true for some floor, snapping `rfl` via `nearest_floor()`.
+
+**Lift shaft visuals** — `liftx0`/`liftx1` (58/69, 12px) are the single shared bounds for both the visual gap and the platform: each room floor's ground line (drawn in `draw_room()`) is split into two segments, `x=0-(liftx0-1)` and `x=(liftx1+1)-127`, leaving that column permanently blank rather than drawing a floor line across it — that gap is the visual "you can fall down here" cue matching the fall-through hazard below. The lift itself renders as a short, wide platform (`rectfill(liftx0,lifty+5,liftx1,lifty+7,12)`, 3px tall) spanning exactly the same bounds, reading as a floor slab rather than a solid block; its bottom row lands exactly on the same y as the ground line whenever the lift is aligned with a floor, so the platform visually plugs the gap. `liftx0`/`liftx1` are also what the boarding, disembarking, and fall-through checks below use for `cx` — an earlier pass had widened only the platform's *render* to 12px without widening the gap or those collision checks to match, leaving an 8px functional column under a visually 12px platform; they're unified now.
+
+**Jump in rooms** — `jumping`/`jt`/`jT`(24)/`jh`(18)/`jdir`/`jy0` implement a fixed parabolic arc: `btnp(2)` (the up-press edge, not held) starts one whenever the player isn't in front of a searchable object (`fo==nil` at that instant — reaching the trigger check at all already implies that, since the search branch above it returns early on `btn(2) and fo`), reading `jdir` from whichever of `btn(0)`/`btn(1)` is held that frame (0 if neither, matching "straight up if the player isn't moving"). Up is otherwise unconditional — the only other place it does something else in a room is the `ronlift` branch (disembark input), which `return`s before this trigger is ever reached, so "up always jumps except on the lift/searching" falls out of code order rather than an explicit guard. Each frame while `jumping`, `jt` advances, `px` moves by `jdir*0.8` (~19px total over the jump), and `py` follows `jy0 - jh*4*jt*(jT-jt)/(jT*jT)` — the standard 0-at-both-ends, peak-`jh`-at-the-midpoint parabola, needing no gravity/velocity state. 24 frames and 18px peak height are deliberately more than a minimal hop needs, so the arc clears an 8px robot or the 12px lift gap (see Lift shaft visuals above) with margin instead of exactly matching it (an initial pass under-scoped this to a bare 8px/16-frame hop that only just cleared either hazard). The whole branch `return`s early, so normal movement, lift boarding, and the fall-through check below are simply skipped while airborne — that's what "clears it safely" means in practice, not a special case against the gap specifically. Landing (`jt>=jT`) snaps `py=jy0` exactly and clears `jumping`; the player always returns to the same floor (`rfl` doesn't change from a jump). The sprite flip mentioned in the spec is Phase 6 work (no real sprite frames exist yet, see Rendering above) — not wired up.
+
+**Jump in the elevator shaft (corridors)** — the same `jumping`/`jt`/`jT`/`jh`/`jdir` globals drive a parallel jump implementation in `_update()`'s `gs==1` branch, triggered the same way (`btnp(2)`) once the shaft-column control check (`spx>=carl and spx<=carr-7`) has had its chance to consume the up-press for moving the car instead — that check always `return`s when up is pressed inside the column (even if the car can't actually move further), so reaching the jump-trigger check at all already means the player is out in a corridor, not in the column; no separate "am I in a corridor" guard is needed. There's no room-equivalent `py`/`jy0` here since the shaft player's y is always derived from `cy` (the car's position), not an independent value, so the jump only moves `spx` (clamped through `shaft_bounds()`, so it still respects a closed wall same as walking) and still triggers `enter_room()` on reaching an open door edge, same as normal corridor walking. `_draw()` computes a purely cosmetic vertical offset (`jh*4*jt*(jT-jt)/(jT*jT)`) applied to the player square's y so the arc is visible; nothing else about the corridor changes during a jump, since there's no hazard there to clear — it's just a faster crossing. (First Phase 3 pass omitted this entirely: pressing up in a corridor did nothing, since jump only existed inside `update_room()`.)
+
+**Lift-fall hazard** — walking into the misaligned lift column (not `lift_near(rfl)`, not jumping) no longer blocks movement: if `rfl<2` and the player isn't already invulnerable (`invt<=0`), it costs 3 HP, drops `rfl` by one floor, and re-grounds `py`. The `invt<=0` guard (shared with robot-hit invulnerability, see below) exists specifically to stop a single unbroken hold-toward-the-gap input from cascading through 2 floors in as many frames — after one fall the player gets the same 45-frame grace window a robot hit gives. On the bottom floor (`rfl==2`) there's nowhere to fall to, so misaligned crossing there is still simply blocked, same as before jump/falling existed.
+
+**Robots (`cur_room.robots`)** — generated in `gen_room()` alongside objects: each of the room's 6 floor-sides independently rolls a robot via `robp[pat]` (a % chance, indexed by the same density pattern that drives that room's object counts, so denser rooms get more of both), capped at 1 per side by construction (it's a single roll, not a loop). Pattern is uniform-random 1-3 (stationary/patrol/chase) independent of density. `update_robot(r)`, called for every robot every frame regardless of player state:
+- **Stationary** (`pat==1`) — flips `r.dir` every 30-90 frames (`r.t` countdown), no movement; this is the look-left/right cue. The look SFX from README's spec is Phase 6 work (see SFX slots below), not wired up yet — only the visual flip.
+- **Patrol** (`pat==2`) — walks between `r.x0`/`r.x1` (its spawn side's floor span) at `r.spd*rmul()`, reversing and pausing 15-45 frames (`r.t`) at each end.
+- **Chase** (`pat==3`) — while `r.fl==rfl`, moves toward `px` at `r.spd*rmul()`. If the player is `jumping` and overlaps the robot's x (`abs(px-r.x)<=6`) and it hasn't already triggered this pass (`r.jumped`), it "thinks" for 30 frames (`r.t`, no movement) then flees the player's x for 20 frames (`r.flee`) before resuming the chase; `r.jumped` resets once the player's x moves away, so a second jump-over later in the same encounter can retrigger it.
+
+Each robot's `spd` is randomized at generation (`base_spd*(0.7 to 1.3)`), matching README's "moves at a random speed" for chase; `rmul()` — `1 + min(nvisited,10)/10` — is the shared difficulty-ramp multiplier applied on top of that at movement time (see Difficulty ramp below), so already-generated robots speed up live as the run progresses rather than needing regeneration.
+
+**Player/robot collision (`hit_check()`)** — called once per frame, unconditionally (works during jump and while riding the lift too, since it's just an AABB test against the player's *current* `px,py` — a jump's elevated `py` or the lift's `py=lifty` naturally miss a floor-level robot's box without any jump/lift special-casing). While `invt>0` it just ticks the timer down and skips the check. On a hit: `hp-=1`, `invt=45`, and a small knockback shoves `px` 6px away from the robot. The player sprite flickers (`blink(10)`) while `invt>0` as the visual invulnerability cue.
+
+**Difficulty ramp** — `nvisited` (0-10) increments the first time each room is entered (`cur_room.seen` guards against re-counting a revisit), tracked via `enter_room()`. `rmul()` turns that into the DESIGN.md formula `1 + rooms_found/10` and is applied to robot movement speed live, every frame, rather than baked into `r.spd` at generation. Density is deliberately *not* re-scaled by `nvisited`: all rooms are generated upfront in `gen_floors()` before any room has been visited (0 rooms found at that point), so there's no live "rooms found so far" signal available at generation time to scale density against. Each room's density pattern (1-4, chosen once at generation, drives both `objp` and `robp`) is the only density lever this cart has; that's a scope call against DESIGN.md's prose ("robot speed **and density** scale up"), following its precise formula (`robot_spd` only) as the more authoritative source over the looser prose description.
+
+**Search** — `sobj` (or nil) is the object currently being searched, recomputed fresh every frame rather than toggled: each frame finds the front, unfound object on `rfl` within `abs(px-o.x)<=6`, and only advances (`prog+=1`, sets `sobj`) while `btn(2)` is held that same frame. Releasing up, walking away, or the floor changing all just stop the increment — `prog` lives on the object itself, so it's never lost, only paused. At 300 (10 steps × 30 frames) it yields (`inv` gets the letter, or `hp` gets +2 capped at 5) and marks `obj.found=true`. Searching pre-empts movement, lift-boarding, and jumping entirely (an early `return` while `btn(2) and fo`); jumping is checked afterward via `btnp(2)`, so a held-up search always wins over a fresh up-press when both are momentarily true.
+
+### SFX slots
+
+| Slot | Event | Notes |
+| ---- | ----- | ----- |
+| 0 | Elevator hum/buzz | Low triangle tone (pitch 0x10) with vibrato, looped over its full 32 steps; played on channel 1 while moving, stopped (`sfx(-1,1)`) on arrival |
+| 1 | Shaft/room door | 4-note decaying noise hit (pitch 24→20, volume 5→0) then silence; one-shot, no loop; played on channel 2 whenever the shaft and a room connect, in either direction |
+
+### State variables
+
+```lua
+-- screen
+gs        -- game state: 0=title 1=elevator shaft 2=puzzle room (3/4 not yet implemented)
+trans_t   -- frames left in the shaft<->room arrival pause; freezes _update while >0
+
+-- floor/room generation
+nf, fh    -- floor count (16), px per floor / car height (24)
+lseed     -- current building's RNG seed
+floors    -- array 1..nf, corridor type per floor (0/1/2/3)
+nrooms    -- valid room count from the last generation (always >=10)
+word      -- this seed's secret word (one of the 5-word list)
+rooms     -- array 1..nrooms, {objs={...}, robots={...}, seen} per valid room, generated once
+roomL, roomR -- [shaft floor] -> room index, for corridor-entry lookup
+
+-- elevator
+cfloor    -- current floor index, 1-based
+cy        -- car's continuous world y
+targety   -- y of the floor currently being travelled to
+moving    -- true while travelling between floors
+spx       -- player's x within the shaft screen; column-clamped, or corridor-extended per shaft_bounds()
+
+-- shaft layout (x-axis)
+carl, carr -- shaft/car interior bounds (56, 71)
+wt         -- wall thickness (4px)
+cl, cr     -- wall's outer, concrete-facing x (52, 75)
+
+-- camera
+maxcamy   -- max camera y offset (nf*fh - playfield height)
+
+-- player resources (persist across rooms)
+hp        -- 0-5, +2 per health object (capped at 5)
+inv       -- array of collected letters, in find order
+
+-- room (valid only while gs==2)
+cur_room  -- rooms[idx] for the room currently entered; {objs={...}, robots={...}, seen=}
+cur_idx   -- that room's index, so exiting can hand it back to the shaft
+entry_side -- 0=left corridor, 1=right; which edge the door/exit is on
+rfl       -- player's current room floor, 0-2 (top-bottom)
+px, py    -- player's room-local position
+ronlift   -- true while riding the centre lift
+sobj      -- object currently being searched, or nil
+fly, flh  -- y-top / height of each room floor (37,37,38)
+liftys, topy, boty, liftspd, liftt -- lift's 3 floor-aligned y values, travel bounds, speed, near-alignment tolerance
+liftx0, liftx1 -- lift shaft x-bounds (58,69); shared by the blank floor gap, the platform render, and the board/fall-through checks
+
+-- jump (jumping/jt/jT/jh/jdir shared by gs==1 corridors and gs==2 rooms; jy0 is room-only)
+jumping   -- true while the jump arc is playing out
+jt, jT    -- frames elapsed / total frames in the current jump (24)
+jh        -- jump peak height, px (18)
+jdir      -- horizontal direction for this jump, -1/0/1
+jy0       -- room-only: py at jump start, the floor-ground y the player returns to on landing
+
+-- player damage & difficulty (persist across rooms)
+invt      -- invulnerability frames remaining; also gates the lift-fall hazard
+nvisited  -- distinct rooms entered so far, capped at 10; drives rmul()
+base_spd, robp -- robot base speed anchor; per-density-pattern % chance of a robot per floor side
+```
 
 ## Reusable code
 

@@ -4,84 +4,100 @@ This is an action/platform/puzzle game built using Claude and Pico-8. Follows th
 
 The game looks like an Atari 2600 game. Colours, sprites, and fonts should approximate the Atari 2600 aesthetic using Pico-8's palette. It's a vastly simplified remake of Impossible Mission (Epyx, 1984).
 
-**Status: not yet built.** Several details below aren't decided yet; see [Open questions](#open-questions).
+**Status: not yet built.** Design is finalized; no `.p8` cartridge exists in this folder yet.
 
 ## Game overview
 
-The player starts in an elevator, viewed from the side as if the wall is cut away. The elevator moves up or down and stops at any floor it finds, humming softly with a faint buzz while moving.
+The player starts in an elevator, viewed from the side as if the wall is cut away. The elevator moves up or down and automatically stops, but only at floors that have a corridor; floors with neither are simply scrolled past. It hums softly with a faint buzz while moving.
 
-Each floor has corridors to the left and/or right, each leading to a room just off screen. Entering a corridor puts the player in the room on the other side, standing beside the door they came in through. Most rooms have 3 floors connected by an automatically moving centre lift, with robots and searchable objects (garbage cans, desks with computers, vending machines, shelves) on each floor.
+The shaft has 16 floors. Each floor is randomized as having a left corridor, a right corridor, both, or neither; a floor with both leads to two independent rooms, one off each side. The shaft itself is narrow, and a corridor isn't a separate place: on a floor with an open corridor, the walkable area of that same elevator screen simply extends from the shaft out to the screen's edge, where the door is. The player walks out of the narrow shaft column, across the blank corridor stretch, and through that edge door into the room, arriving on its bottom floor. Entering from the left, the player arrives beside the room's right-hand wall walking further left; entering from the right, beside its left-hand wall walking further right; movement stays continuous in the same direction the whole trip, and crossing either door pauses briefly (about 300ms) before control returns, in both directions. Most rooms have 3 floors connected by an automatically moving centre lift, with robots and searchable objects (garbage cans, desks with computers, vending machines, shelves) on each floor. A room's state persists once generated: searched objects stay empty and robots keep their position if the player leaves and comes back.
 
-Searching an object can yield health or a puzzle-piece letter, one of a set of 10 that spell a secret word. Finding the control room and solving the puzzle wins the game.
+Searching an object can yield health or a puzzle-piece letter, one of a set of 10 that spell a secret word (picked per seed from a short word list). The generator guarantees at least 10 valid rooms among the 16 floors and places one letter in each of the first 10; every object in any further rooms holds a health pickup instead. The control room sits behind the last (deepest) valid room in the shaft. Reaching it shows the secret word as blank letter slots; the player arranges their collected letters into the blanks and submits. A correct arrangement wins; a wrong one costs 1 HP and can be retried without limit.
 
 ## Scenes
 
 | Scene | Shows | Enters from | Exits to |
 | ----- | ----- | ------------ | -------- |
 | Title | "#2 Mission" / "'26 WARPED GAME JAM" | Startup | Any button → Elevator shaft |
-| Elevator shaft | Vertical shaft, randomized floors scrolling by, top and bottom bounds | Title; exiting a room back through its door | Moving left/right into a floor's corridor → Puzzle room |
-| Puzzle room | 3 floors of robots and objects, centre lift, player standing beside the entry door | Elevator shaft, via a floor's corridor | Exiting back through the entry door → Elevator shaft; reaching the control room (far side of the last room found) → Control room |
-| Control room | Final room | The last puzzle room found | Puzzle solved → Game over (win); timer or HP hits 0 → Game over (loss), any time |
+| Elevator shaft | Vertical shaft, 16 randomized floors scrolling by (auto-stopping only at corridor floors), top and bottom bounds; a floor's corridor is part of this same screen, extending from the shaft to a door at the screen edge | Title; walking back out of a puzzle room | Walking through an edge door on a corridor floor → Puzzle room |
+| Puzzle room | 3 floors of robots and objects, centre lift, player standing beside the entry door on the bottom floor | The elevator shaft, through a floor's edge door (a "both" floor's two doors lead to two independent rooms) | Walking back out the entry door → Elevator shaft; reaching the control room (far side of the last valid room in the shaft) → Control room |
+| Control room | Blank letter slots for the secret word; player arranges collected letters and submits | The last valid puzzle room in the shaft | Correct arrangement → Game over (win); timer or HP hits 0 → Game over (loss), any time; wrong arrangement costs 1 HP, stays in Control room |
 | Game over | Final score, win or lose state | Timer reaches 0; HP reaches 0; puzzle solved in Control room | Any button → Title |
 
 Transitions: elevator movement implies scrolling by floor as it moves (constant per game, may be randomized between games). Entering or exiting a room fades in/out. Game start and end flash.
 
 ## Elevator & rooms
 
-- Layout: title screen (Intellivision-style, per the 2026 jam guide); elevator shaft screen; puzzle room screen.
-- Generation: floors are randomized (left, right corridor, or both), seeded. Puzzles are randomized from 4 patterns. Puzzles must be solvable, and robots must be jumpable with skill. The secret word must be solvable.
+- Layout: title screen (Intellivision-style, per the 2026 jam guide); elevator shaft screen (corridors are part of this screen, not separate); puzzle room screen; control room screen.
+- Generation: 16 floors, each randomized as left corridor, right corridor, both (two independent rooms), or neither, seeded. The generator re-rolls the seed until at least 10 floors resolve to a valid room. Puzzle rooms are randomized from 4 patterns that vary robot and object density per floor side (light/medium/heavy), not room structure. Puzzles must be solvable, and robots must be jumpable with skill.
+- The elevator only stops at floors with a corridor; a "neither" floor is scrolled past without stopping. If the shaft's very top or bottom floor happens to be "neither", the car simply can't reach it — it stops at the nearest corridor floor instead.
+- Corridor: not a separate place, just the part of the elevator screen between the narrow shaft column and the screen's edge, on any floor with an open corridor on that side. Same blank background as the rest of the shaft. No objects or robots in it, just floor space to walk across; jumping there is just a faster way to cross it, since there's nothing to clear.
+- Secret word: 10 letters, picked per seed from a short hardcoded word list (`IMPOSSIBLE`, `INFILTRATE`, `DEMOLITION`, `ELECTRICAL`, `MECHANICAL`). One letter is placed in each of the first 10 valid rooms (in shaft order); every object in rooms beyond the 10th holds a health pickup instead. The control room sits behind the last valid room in the shaft, whatever that room's letter status.
+- Room persistence: once a room is generated, its state sticks. Objects already searched stay empty and robots keep their current position and pattern state if the player leaves and returns.
 - Placement rules: no more than 1 robot per floor side (left or right); no more than 2 items per floor side.
-- Search: standing in front of an object and pressing up raises the player's hands. A comic-style bubble appears above the player with a progress bar, 0 to 10, about 1 second per step. At 10, the object's contents (health or a puzzle letter) are added to the player's inventory and the bubble disappears.
+- Search: standing in front of an object and holding up raises the player's hands. A comic-style bubble appears above the player with a progress bar, 0 to 10, about 1 second per step. At 10, the object's contents (health or a puzzle letter) are added to the player's inventory and the bubble disappears. Releasing up (or getting hit) pauses the bar at its current step rather than resetting it; holding up again in front of the same object resumes from there.
 - Robots, 3 movement patterns:
   - Stationary: looks left and right at random intervals, beeping on each look.
   - Patrol: moves left and right at some speed, pausing a random amount of time at each end.
-  - Chase: moves toward the player at a random speed if the player is on the same floor. If the player jumps over it, the robot pauses, "thinks," then reverses direction.
+  - Chase: moves toward the player at a random speed if the player is on the same floor. If the player jumps over it, the robot pauses, "thinks" for about 1 second, then reverses direction.
+- Difficulty ramps with rooms found: robot speed and density scale up as the player collects more letters, similar in spirit to game 3's fall-speed ramp.
+- Puzzle solving: the control room shows one blank slot per letter of the secret word. The player arranges their collected letters into the blanks (directional input to cycle/place) and submits. A correct arrangement wins immediately; a wrong one costs 1 HP and can be retried without limit.
 
 ## Player
 
-- Running (3-frame animation) or standing (in the elevator, at rest, or searching); searching raises the player's hands.
+- Running (3-frame animation) or standing (in the elevator, at rest, or searching); searching raises the player's hands; jumping flips the sprite.
 - Moves left or right; moves up or down while in an elevator shaft.
-- Pressing up outside an elevator triggers a search on a found object, or a jump (in the direction of movement, or straight up if the player isn't moving).
-- Jumping clears lift shafts and robots, or is used to move faster.
+- Up always jumps, except: while standing in the elevator car's narrow column (up/down there moves the car instead — this doesn't apply out in a corridor, where jumping works normally), while riding the centre lift, or while searching a found object (up there advances the search instead). Jump direction follows whichever way the player is currently moving, or straight up if they aren't.
+- Jumping is a fixed parabolic arc (Mario-style), not an instant hop: higher and slower than a quick hop would be, deliberately floaty, with enough horizontal reach to clear a robot or the lift shaft's gap with margin to spare, not just barely. Used to clear either hazard, or just to move faster.
 - Player steps make a percussive sound.
 - Resources:
-  - HP starts at 5. Lost when hit by a robot, or from falling down a lift shaft (amount per hit not yet decided, see Open questions).
+  - HP starts at 5. A robot hit costs 1 HP plus a brief knockback; a lift-shaft fall costs 3 HP; a wrong puzzle submission in the control room costs 1 HP.
   - Inventory begins with one letter.
 
 ## Items
 
 | Item | Effect | Visual feedback |
 | ---- | ------ | --------------- |
-| Health pickup | Restores HP (amount not yet decided) | Object yields contents once a search completes |
+| Health pickup | Restores 2 HP | Object yields contents once a search completes |
 | Puzzle letter | Adds one letter to inventory, toward the secret word (1 of 10 total) | Object yields contents once a search completes |
 
 ## Game over conditions
 
-- Timer reaches 0.
+- Timer reaches 0. Starts at 300 seconds (5 minutes), never resets mid-run.
 - Player HP reaches 0.
-- Player finds the control room and solves the puzzle (win).
+- Player reaches the control room and submits the correct letter arrangement (win). Score is `100 × letters collected + 2 × seconds remaining` on a win, 0 on a loss.
 
 ## Sound
 
 | Event | Description |
 | ----- | ------------ |
 | Elevator moving | Soft hum with a faint buzz |
+| Elevator ambient loop | Low, tense ambient pad, loops only while in the elevator shaft; silent in puzzle rooms and elsewhere |
+| Room door (enter/exit) | Short percussive thunk, decaying noise hit |
 | Player footstep | Percussive |
+| Player jump | Quick rising whoosh |
 | Robot look | Beep |
+| Robot hit (player) | Harsh, low percussive/noise hit |
+| Search completion | Bright, short ascending blip |
+| Item pickup: health | Warm ascending tone |
+| Item pickup: letter | Twinkling chime, distinct from the health tone |
+| Win | Triumphant ascending run |
+| Loss | Descending buzz |
 
-Not yet decided: search completion, item pickup (health vs. letter), robot hit, jump, win, and loss sounds. See Open questions.
+This game's SFX set is a distinct identity from games 1 and 3, not a reuse of their runs.
 
 ## Tile / sprite visuals
 
-Not yet decided; no palette or per-tile visuals have been chosen. See Open questions for the full list of elements that need one.
+Palette reuses game 1's Atari-2600-approximation colour index list; see [DESIGN.md](DESIGN.md) for the per-element colour table.
 
-## Open questions
-
-- **Health pickup value**: how much HP does a health object restore?
-- **Robot/fall damage**: how much HP does a robot hit cost? Is a lift-shaft fall the same amount?
-- **Puzzle piece distribution**: the secret word draws from a set of 10 letters across 8 rooms. Is every piece guaranteed to appear once, or is placement random (allowing duplicates or gaps)?
-- **Score**: the original screens list mentions a score shown on the game-over screen, but no scoring system is defined anywhere else. Does this game have a score, or is HP/timer/secret-word the only state that matters?
-- **Timer**: starting value, and whether anything resets it mid-run.
-- **Control room location**: is it fixed behind a specific room (e.g. the 8th), or determined dynamically by whichever room the player happens to reach last?
-- **Palette and tile visuals**: colours and shapes for the elevator car, corridor walls, room floors, the centre lift, robots, each object type (garbage can, desk/computer, vending machine, shelf), health pickups, and letter tiles.
-- **Missing sound events**: search completion, item pickup, robot hit, jump, win, loss.
+| Tile / sprite | Colour | Visual description |
+| ------------- | ------ | ------------------- |
+| Elevator car | Sky blue | Boxy car frame around the player, open on the side facing the shaft |
+| Corridor / room floor | Dark blue | Flat institutional floor and back wall |
+| Centre lift | Teal | Vertical platform strip, animates moving top to bottom |
+| Robot | Red | Boxy droid silhouette, faces the direction it's looking or moving |
+| Object (can, desk, vending machine, shelf) | Dark green | Distinct 8×8 silhouette per object type, same base colour |
+| Health pickup | Green | Cross/plus glyph revealed on search completion |
+| Letter tile | Yellow | Single letter glyph revealed on search completion |
+| Player | White | Runs (3-frame), stands, or raises hands to search |
+| HUD text | White | Bottom two lines, over a black strip |

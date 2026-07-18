@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-A Pico-8 game called "1" — a retro maze game with Atari 2600 aesthetics. The full spec is in [readme.md](readme.md). Output is a single `.p8` cartridge file.
+A Pico-8 game called "1" — a retro maze game with Atari 2600 aesthetics. The full spec is in [README.md](README.md), following [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md). Output is a single `.p8` cartridge file.
+
+This game shipped before `SPEC-FORMAT.md`'s DESIGN.md convention existed, so there's no DESIGN.md here; the Architecture section below is both the technical design and the as-built record.
 
 ## Development
 
