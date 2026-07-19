@@ -10,10 +10,13 @@ Game:
 
 ```
 y=0
-  |  open sky above the arc's implied centre
-y=30    grid horizon line: scanlines fade to black here
-  |  background scanline grid, 8 fixed rows (see Core system
-  |  design), brightest near the bottom, fading toward y=30
+  |  open sky; two entry-point dots sit near here at (32,12) and
+  |  (96,12), where enemies enter and split left/right (see
+  |  Core system design's Enemy entrance note)
+y=12    entry points
+  |  background grid: dark-blue line pairs converging on the
+  |  shared centre below, sparsest here near the top (see Core
+  |  system design's Background grid note)
 y=55    ship's arc centre; also the height of its untrimmed
   |     endpoints (x=0 and x=128), where the arc meets the
   |     screen edges (the whole reason this is a valley, see
@@ -47,21 +50,22 @@ Base colour pool reuses game 1's Atari-2600 approximation ([`../1/CLAUDE.md`](..
 | Ship (fixed, never re-tints) | White | 7 |
 | Ship shot | White | 7 |
 | Enemy / enemy shot | Wave theme colour, rotates | varies, see below |
-| Grid — foreground band (3 rows) | Wave theme "hi" tone | varies, see below |
-| Grid — mid band (2 rows) | Wave theme "mid" tone | varies, see below |
-| Grid — horizon band (3 rows) | Black (always, regardless of wave) | 0 |
+| Background grid, radial spoke lines, vanishing-point dot | Dark blue (fixed, never re-tints) | 1 |
+| Entry-point dots | Yellow (fixed, never re-tints) | 10 |
 | HUD text | White | 7 |
 
-Wave theme rotates on a 4-wave cycle, indexed by `(wave-1) % 4`:
+Wave theme rotates on a 4-wave cycle, indexed by `(wave-1) % 4`, and now only covers the enemy/enemy-shot colour:
 
-| `(wave-1) % 4` | Enemy / enemy shot | Grid hi | Grid mid |
-| -------------- | ------------------- | ------- | -------- |
-| 0 | Red (8) | Orange (9) | Dark red (13) |
-| 1 | Green (11) | Dark green (3) | Dark green (3) |
-| 2 | Teal (12) | Sky blue (6) | Dark blue (5) |
-| 3 | Purple (2) | Dark red (13) | Dark blue (5) |
+| `(wave-1) % 4` | Enemy / enemy shot |
+| -------------- | ------------------- |
+| 0 | Red (8) |
+| 1 | Green (11) |
+| 2 | Teal (12) |
+| 3 | Purple (2) |
 
-Background fill (`cls()`) is always black (0); the grid's horizon band blends into it by design.
+An earlier version of this table also rotated the background grid through a "hi"/"mid" tone pair per wave (Orange/Dark red, Dark green/Dark green, Sky blue/Dark blue, Dark red/Dark blue). That was dropped when the background grid itself reverted to the fixed dark-blue radiating version (see Core system design's Background grid note) — a play-test note preferred that grid's original, unchanging look, so wave identity is now carried by the enemy/shot colour alone.
+
+Background fill (`cls()`) is always black (0).
 
 ## State machine
 
@@ -94,17 +98,17 @@ An earlier draft of this design had the centre *below* the play area, which prod
 
 **Enemy entrance** — Enemies don't spawn already on their tier's band. Entry runs in two timed phases, driven by a single global frame counter `ET` since wave start (`ND1`/`ND2` frame durations, both defaults, tune once playable), followed by an untimed third phase that reuses existing formation math:
 
-1. **Circle at the entry point** (`ET < ND1`, ~`ND1/30` seconds) — a second fixed point, the entry point `(64,12)`, sits near the top of the screen, well above the shared centre `(64,55)`. Each enemy orbits the entry point at a small fixed radius (`D1R=10px`), all sharing one angular speed (`CSPD=0.01` turns/frame, roughly 3.6 full revolutions over a 360-frame phase) but starting at a different phase offset (spread evenly by spawn order) so they don't stack. This is a second, independent point/radius pair, not a reuse of the shared centre's own arc system.
-2. **Spiral to the shared centre** (`ND1 <= ET < ND1+ND2`, ~`ND2/30` seconds) — each enemy's position blends from where its orbit-the-entry-point formula would put it toward the shared centre `(64,55)`, by linear interpolation on the progress fraction through this phase. Because the orbit formula keeps running throughout (not frozen at phase-1's exit position), the blend reads as a decaying spiral that shrinks to nothing exactly as the enemy arrives at the shared centre, rather than a straight glide.
+1. **Split and circle at one of two entry points** (`ET < ND1`, ~`ND1/30` seconds) — two fixed points, `(LX,D1Y)=(32,12)` and `(RX,D1Y)=(96,12)`, sit near the top of the screen flanking the shared centre `(64,55)`, well above it. Each enemy is assigned to one or the other at spawn, alternating by spawn order (`idx%2`) so the wave splits exactly in half; it orbits only its assigned point at a small fixed radius (`D1R=10px`), sharing one angular speed (`CSPD=0.01` turns/frame, roughly 3.6 full revolutions over a 360-frame phase) with every other enemy on the same point but starting at a different phase offset so they don't stack. Alternating a globally-evenly-spaced phase-offset sequence by parity keeps each side's own sub-sequence evenly spaced too (every other value of an evenly-spaced sequence is itself evenly spaced), so no extra bookkeeping is needed to keep either ring from clumping. This replaces an earlier single-entry-point version (both an original single-point design and a first, single-point Phase 7 build) that read as one undifferentiated ring circling one spot; a play-test note asked for the wave to visibly fork into two streams at the top of the screen before continuing down, matching classic two-column enemy entrances, rather than reading as one clump. Both entry points are drawn as small yellow dots.
+2. **Spiral to the shared centre** (`ND1 <= ET < ND1+ND2`, ~`ND2/30` seconds) — each enemy's position blends from where its own entry point's orbit formula would put it toward the shared centre `(64,55)`, by linear interpolation on the progress fraction through this phase. Because the orbit formula keeps running throughout (not frozen at phase-1's exit position), the blend reads as a decaying spiral that shrinks to nothing exactly as the enemy arrives at the shared centre, rather than a straight glide. Both streams (left-entry and right-entry) converge on the same shared centre here, so "then continue down" happens naturally: this phase and phase 3 below are unchanged by the phase-1 split.
 3. **Grow into formation** (`ET >= ND1+ND2`) — unchanged from the original entrance note below: `r=0` at the shared centre, grows to the tier's target radius at `RGR` px/frame while sweeping its angle, same as formation sweep once settled.
 
 Total entrance time is `(ND1+ND2)/30` seconds plus up to `ER[1]/RGR/30` seconds for the slowest (inner-tier) enemy to finish growing into formation; at the current defaults (`ND1=ND2=360`, `RGR=1`) that's about 24s plus up to 1.8s, roughly 25.8s total (doubled from an initial 10-20s target after a play-test pass asked for a longer, more visibly circling entrance). Once fully arrived (formation sweep, `ET>=ND1+ND2` and `r` at its tier target), `ea` sweeps at half its original speed (`ESPD=0.0007` turns/frame, down from `0.0014`) — a play-test note asked for slower movement specifically "once in the radial area," and since `ea` only affects visible position in this final phase (phases 1-2 derive position from the orbit/spiral formulas instead), halving it only slows the settled formation sweep, not the entrance itself.
 
 Both fixed points are drawn: the entry point as a small dot, the shared centre as a small dot with a few faint spoke lines extending out to the screen edge (drawn via `arc_xy` with a radius far larger than any on-screen distance, 200px, so Pico-8's own line-clipping does the work of stopping exactly at the edge regardless of angle; originally stopped at the ship's own arc radius, 64px, which read as too short) — still giving the shared centre a deliberate vanishing-point read. Phase 3 (below) implements a diving enemy's miss-respawn as a direct snap to its band edge (`ea=±B`, `r` already at its tier target), not routed back through these three entrance phases; sending a respawning enemy through the full entrance again is a possible later polish pass, not required by the current spec.
 
-Enemies also scale in size with their current distance from the shared centre `(64,55)`, computed fresh each frame regardless of which entrance phase they're in (`sz = mid(1, (60-dist)/10, 3)`, a placeholder `circfill` radius): far away (near the entry point, `dist≈33-53px`) they read small, and they grow visibly larger through phase 2 as `dist` shrinks toward 0, capping at radius 3. In formation this same distance-based size happens to line up with the intended Sprite rendering design below (the outer tier, closest to centre at `r=33`, reads largest; the inner tier, farthest at `r=53`, reads smallest) — the same "worth more" cue Phase 7's `sspr`-scaled outer-tier sprite is meant to give, arrived at here for free rather than by tier lookup. The 3px collision hitbox used for shot/enemy collision is unaffected by this draw-only radius.
+Enemies also scale in size with their current distance from the shared centre `(64,55)`, computed fresh each frame regardless of which entrance phase they're in (`ds = mid(1, (60-dist)/10, 3) * 3`, an `sspr` destination width/height in px, source always the single enemy sprite): far away (near either entry point, `dist≈43px`) they read small (~5px), and they grow visibly larger through phase 2 as `dist` shrinks toward 0, capping at 9px. In formation this same distance-based size is what makes the outer tier (closest to centre at `r=33`, `ds≈8px`) read largest and the inner tier (farthest at `r=53`, `ds` floored at 3px) read smallest — a single continuous formula produces the "worth more" sizing cue for every tier and through every entrance phase, rather than a fixed per-tier lookup applied only once settled; an earlier Phase 7 pass had reintroduced fixed native-vs-`sspr`-scaled sizing per tier (dropping the continuous version when real sprites replaced `circfill`), but a play-test note asked for the "start smaller, then get larger" entrance read back, so the continuous formula now drives the sprite's `sspr` destination size directly instead of being tier-gated. The 3px collision hitbox used for shot/enemy collision is unaffected by this draw-only size.
 
-**Background during entrance** — The horizontal-line grid is a static, non-animated spatial cue, not tied to `ET`: 6 line pairs straddle the shared centre's y (`55±d` for `d` starting at 4px and multiplying by 1.6 each step out to roughly `55±67`), so lines are dense right around the shared centre and spread out approaching either screen edge — the same "closer together near the point of interest" read as the radial spoke lines, just spatial rather than temporal. An earlier version tied the same visual to `ET`, animating spacing from wide to tight over the entrance duration, but that read as unmotivated movement rather than a distance cue once played; this version fixes the lines' final on-screen positions in place from frame 1. Drawn in the same colour as the radial spoke lines (dark blue) so the two line systems read as one visual family rather than two competing colours. This is a standalone prototype, not the real 8-fixed-row grid documented under Background grid below; the two will likely be reconciled into one system once Phase 7 builds the real background.
+**Background grid** — A static, non-animated spatial cue, not tied to `ET`: 7 line pairs straddle the shared centre's y (`55±d` for `d` starting at 4px and multiplying by 1.6 each step, `d≈4,6.4,10.2,16.4,26.2,41.9,67.1`), so lines are dense right around the shared centre and spread out approaching either screen edge, converging toward both the entry points above (near `y=12`) and the ship's own arc below (down to `y≈122`) — the same "closer together near the point of interest" read as the radial spoke lines, just spatial rather than temporal, and together the two line systems form a single-point-perspective "tunnel" converging on the shared centre. Drawn in the same fixed dark blue (1) as the radial spoke lines so the two read as one visual family rather than two competing colours; unlike the enemy/shot colour, this grid does **not** rotate with the wave theme (see Palette note below). An earlier version tied the line spacing to `ET`, animating it wide-to-tight over the entrance duration, but that read as unmotivated movement rather than a distance cue once played; this version fixes the lines' positions in place from frame 1. A later Phase 7 pass replaced this entirely with a flat 8-fixed-row scanline grid (bright near the HUD, fading to black at a fixed horizon `y=30`, colours rotating with the wave theme) as a more literal read of "receding perspective," but a play-test note asked for the original converging grid back specifically ("we lost the gridlines into the distance, they looked good"), so this version is the current and final one; the flat-row version and its wave-rotating grid-hi/grid-mid colours are retired, not merely superseded-pending-reconciliation as an earlier note here suggested.
 
 Each enemy independently, on a wave-scaled interval, either fires or breaks formation to dive:
 
@@ -124,22 +128,25 @@ Each enemy independently, on a wave-scaled interval, either fires or breaks form
 
 **Scoring** — `50 * arc_tier + (50 if the enemy was diving when destroyed else 0)`, where `arc_tier` is 1 (inner), 2 (middle), or 3 (outer). Rewards both prioritizing harder-to-reach outer-arc enemies and taking the risk of engaging a diving enemy.
 
-**Background grid** — Independent of the arc-geometry centre; 8 fixed horizontal rows at `y = {127, 119, 109, 97, 83, 67, 49, 30}` (spacing widens moving up, giving a receding-perspective read), drawn full-width every frame with `line()`. Rows 1-3 (y=127/119/109) use that wave's grid-hi colour, rows 4-5 (y=97/83) use grid-mid, rows 6-8 (y=67/49/30) are always black, fading the grid into the background by the horizon at y=30. Static, no scroll, to keep token cost down; a scroll offset is a possible Phase 5 polish item, not required.
-
 **Sprite rendering**
 
-Ship (sprite 0), rocket-wedge silhouette, drawn at native 8×8 via `spr()`, offset `(-4,-4)` from its arc position, always white (7):
+Ship (sprites 0, 5, 6: straight, slight lean, sharp lean), rocket-wedge silhouettes, drawn at native 8×8 via `spr()`, offset `(-4,-4)` from its arc position, always white (7). Each lean sprite keeps the same base row (the bottom two rows, the wedge's "feet") in place and skews the rows above it further right the closer to the nose, so the ship reads as pivoting around a planted base rather than translating sideways:
 
 ```
-...##...
-...##...
-..####..
-..####..
-.######.
-.######.
-##....##
-##....##
+sprite 0: straight    sprite 5: lean (slight)   sprite 6: lean (sharp)
+...##...              .....##.                  .......#
+...##...              .....##.                  .......#
+..####..              ...####.                   ...####
+..####..              ...####.                   ...####
+.######.              ..######                   ..#####
+.######.              ..######                   ..#####
+##....##              ##....##                   ##....##
+##....##              ##....##                   ##....##
 ```
+
+Given the ship's current angle `sang` (measured from vertical, same convention as shot angles below), pick the sprite and flip flag with the same two-threshold pattern as the shot lookup, tuned separately for the ship's own ±69° range (roughly dividing it into thirds): `abs(sang) < 23°` → sprite 0, `23° <= abs(sang) < 46°` → sprite 5, `abs(sang) >= 46°` → sprite 6. This gives 5 visibly distinct rotation states (straight, slight-left, slight-right, sharp-left, sharp-right) from 3 drawn sprites, added after a play-test note asked for the ship to visibly rotate as it sweeps rather than staying a fixed silhouette that just translates.
+
+The nose must always point toward the shared centre `(64,55)`, the same "inward" direction the player's own shots already fire along (`arc_xy(0,0,-1,sang)`), not toward the direction of travel: `flip_x = sang > 0`. This follows from the arc's geometry alone, independent of any trig sign convention: `sang>0` puts the ship's screen `x` to the right of the centre's `x=64` (the input mapping already established under Ship movement & trim, "increasing `a` sweeps rightward"), so the centre sits to the ship's *left* and the nose (drawn leaning right by default in sprites 5/6) must be mirrored to point left; symmetrically, `sang<0` leaves the nose unflipped, since the centre is then to the ship's right, matching the base art's default rightward lean. An initial pass used `flip_x = sang < 0`, the inverse of this, which pointed the nose *away* from the centre at both ends of the sweep; a play-test note caught it ("the ship rotates in the wrong direction... the nose should stay pointing to the centre").
 
 Enemy (sprite 1), a distinct wing silhouette (not derived from the ship sprite), recoloured per the wave's theme colour. Vertically symmetric, so it reads the same whether formation-sweeping or mid-dive; no flip needed:
 
@@ -154,7 +161,7 @@ Enemy (sprite 1), a distinct wing silhouette (not derived from the ship sprite),
 ##....##
 ```
 
-Inner and middle tier enemies (arcs at 53px/43px) draw this at native 8×8 via `spr()`. Outer tier (33px, the highest-scoring arc) draws the same sprite scaled to 10×10 via `sspr(8,8,8,8, x-5,y-5,10,10)`, a free visual "worth more" cue with no extra sprite slot.
+Always drawn via `sspr(8,0,8,8, x-ds/2,y-ds/2, ds,ds)`, `ds` a continuous size in px driven by distance from the shared centre (see Core system design's Enemy entrance note) rather than a fixed per-tier native/scaled split; the outer tier still reads largest and the inner tier smallest, as a side effect of that formula rather than a separate tier check.
 
 Shots (sprites 2-4: straight, shallow, steep), shared between player and enemy shots, recoloured to match the firer (white for the player, that wave's enemy colour for enemies):
 
@@ -178,7 +185,7 @@ Given a shot's fired angle `θ` (`sang` for player shots, `ea` for enemy shots, 
 - `flip_x = θ < 0` (mirrors left-leaning shots)
 - `flip_y = ` true for enemy shots (which travel downward, outward from centre), false for player shots (which travel upward, inward toward centre)
 
-This covers every direction that can actually occur (both ship and enemy angular ranges stay well short of ±90°, so no shot ever needs a near-horizontal sprite) from 3 drawn sprites instead of 8, using Pico-8's native `flip_x`/`flip_y` args to `spr()` for the mirrored cases.
+This covers every direction that can actually occur (both ship and enemy angular ranges stay well short of ±90°, so no shot ever needs a near-horizontal sprite) from 3 drawn sprites instead of 8, using Pico-8's native `flip_x`/`flip_y` args for the mirrored cases. Shots are drawn at half their native size (`sspr(sp*8,0,8,8, x-2,y-2, 4,4, flip_x,flip_y)`, a 4×4 destination instead of 8×8) — a play-test note found the full-size sprites read as too large once real art replaced the original single-pixel placeholders. The 3px collision hitbox is unaffected by this draw-only size, same precedent as the enemy sizing above.
 
 **Explosion effect** — On enemy death, spawn 4-6 short-lived particles at the enemy's last position: each a flat `{x,y,vx,vy,t}` table, `vx,vy` a small random outward velocity, `t` a countdown (~10-15 frames) decremented each frame and removed at 0. Drawn with `pset` or a 1px `circfill`, coloured to match that wave's enemy colour (no dedicated sprite, no palette entry needed). Same flat-array-by-id pattern as `shots`/`en`, so it costs a `del()`-safe reverse loop, not new architecture.
 
