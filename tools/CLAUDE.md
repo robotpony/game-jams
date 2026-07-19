@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Status
 
-This is an empty scaffold: `sprites/`, `maps/`, `sfx/`, `music/`, and `shared/` exist as placeholder directories with no scripts yet. Check [TASKS.md](TASKS.md) for the current backlog before starting work; it lists the first three tools to build (a Pico-8 spec template, an SFX notation utility, and a `/pico8` skill).
+`maps/`, `sfx/`, `music/`, and `shared/` are still placeholder directories with no scripts yet. `sprites/` has a working tool: `sprites/sprite_tool.py` (preview, sheet, ascii, patch subcommands) and `sprites/defs/` (hex-grid sprite source files). Check [TASKS.md](TASKS.md) for the current backlog before starting work on the other asset types.
 
 There is no build, lint, or test tooling. Nothing exists to run yet, and none of the commands in [Usage pattern](#usage-pattern) below correspond to real files — they illustrate the intended CLI shape for scripts you write here.
 
@@ -76,6 +76,15 @@ __music__
 ```
 
 For Atari 2600-style palette: use 0, 7, 8, 9, 10, 11, 3, 12, 6, 5, 2, 13.
+
+## Previewing generated output
+
+Any tool in this project that produces a visual preview artifact (a PNG, currently only `sprites/sprite_tool.py`'s `preview` and `sheet` subcommands; the same should apply to `maps/` renders and any future visual output) MUST launch the OS image viewer on it by default, via `open <path>` on macOS. A printed file path nobody follows isn't a review step.
+
+- Default to opening; provide a `--no-open` flag for scripting/CI use, don't require an opt-in flag for the common case
+- Write preview PNGs to the session scratchpad directory when working in Claude Code, not `/tmp`
+- When comparing multiple sprites/tiles/frames, prefer a single combined image (see `sheet`) over one image per item; fewer viewer windows, easier side-by-side comparison
+- This applies regardless of which asset type the tool covers; it's a project-wide convention, not specific to sprites
 
 ## Constraints
 

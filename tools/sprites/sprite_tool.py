@@ -9,9 +9,20 @@ this runs with a stock python3).
 """
 import argparse
 import struct
+import subprocess
 import sys
 import zlib
 from pathlib import Path
+
+
+def maybe_open(path, do_open):
+    """Launch the OS image viewer on a written preview, unless suppressed.
+
+    Default-on: previews are for a human to look at, and a printed path
+    nobody follows isn't a review step. --no-open opts out (scripting, CI).
+    """
+    if do_open and sys.platform == "darwin":
+        subprocess.run(["open", str(path)], check=False)
 
 # Standard Pico-8 palette (RGB), indices 0-15.
 PALETTE_NAMES = [
@@ -66,6 +77,27 @@ def cmd_preview(args):
     rgb_rows = [[PALETTE[c] for c in row] for row in grid]
     write_png(rgb_rows, args.out, scale=args.scale)
     print(f"wrote {args.out}")
+    maybe_open(args.out, args.open)
+
+
+GRID_LINE = (60, 60, 60)
+
+
+def cmd_sheet(args):
+    """Render several sprites into one PNG, side by side with a grid line
+    between them, so multiple defs can be reviewed in a single image."""
+    grids = [load_sprite(p) for p in args.sprites]
+    rgb_rows = []
+    for row_i in range(8):
+        row = []
+        for i, grid in enumerate(grids):
+            if i > 0:
+                row.append(GRID_LINE)
+            row.extend(PALETTE[c] for c in grid[row_i])
+        rgb_rows.append(row)
+    write_png(rgb_rows, args.out, scale=args.scale)
+    print(f"wrote {args.out} ({len(grids)} sprites: {', '.join(Path(p).stem for p in args.sprites)})")
+    maybe_open(args.out, args.open)
 
 
 def sprite_hex_rows(grid):
@@ -80,12 +112,18 @@ def cmd_ascii(args):
     lists which glyph is which colour whenever a sprite uses more than
     black/one foreground colour. Glyphs, not ANSI colour, carry the shape
     signal here since not every console this runs in renders 24-bit colour.
+    Pass --color to switch to ANSI truecolour blocks on consoles that do.
     """
     sprites = [load_sprite(p) for p in args.sprites]
     labels = [Path(p).stem for p in args.sprites]
 
     gap = "  "
-    cell = lambda c: f"{SYMBOLS[c]} "
+    if args.color:
+        def cell(c):
+            r, g, b = PALETTE[c]
+            return f"\x1b[48;2;{r};{g};{b}m  \x1b[0m"
+    else:
+        cell = lambda c: f"{SYMBOLS[c]} "
     header = gap.join(label.center(16) for label in labels)
     print(header)
     for row_i in range(8):
@@ -94,7 +132,7 @@ def cmd_ascii(args):
     print()
 
     used = sorted({c for grid in sprites for row in grid for c in row} - {0})
-    if used:
+    if used and not args.color:
         legend = "  ".join(f"{SYMBOLS[c]}={PALETTE_NAMES[c]}({c})" for c in used)
         print("legend: " + legend)
 
@@ -143,7 +181,15 @@ def main():
     pv.add_argument("sprite", help="path to an 8x8 hex-grid sprite file")
     pv.add_argument("out", help="output PNG path")
     pv.add_argument("--scale", type=int, default=32)
+    pv.add_argument("--no-open", dest="open", action="store_false", help="don't launch the OS viewer")
     pv.set_defaults(func=cmd_preview)
+
+    sh = sub.add_parser("sheet", help="render several sprites side by side into one PNG")
+    sh.add_argument("sprites", nargs="+", help="two or more sprite files to lay out left to right")
+    sh.add_argument("out", help="output PNG path")
+    sh.add_argument("--scale", type=int, default=24)
+    sh.add_argument("--no-open", dest="open", action="store_false", help="don't launch the OS viewer")
+    sh.set_defaults(func=cmd_sheet)
 
     pa = sub.add_parser("patch", help="write a sprite into a cart's __gfx__ section")
     pa.add_argument("cart", help="path to the .p8 cartridge file")
@@ -153,6 +199,7 @@ def main():
 
     asc = sub.add_parser("ascii", help="print sprite(s) as glyph grids in the terminal")
     asc.add_argument("sprites", nargs="+", help="one or more sprite files to show side by side")
+    asc.add_argument("--color", action="store_true", help="use ANSI truecolour blocks instead of glyphs")
     asc.set_defaults(func=cmd_ascii)
 
     args = p.parse_args()
