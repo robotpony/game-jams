@@ -11,7 +11,6 @@ FCD=4
 SSPD=4
 ER={53,43,33}
 EB={0.13889,0.11111,0.08333}
-EN={7,6,5}
 ESPD=0.0007
 RGR=1
 D1X,D1Y=64,12
@@ -34,6 +33,21 @@ function arc_xy(cx,cy,r,a)
   return cx-r*sin(a),cy+r*cos(a)
 end
 
+function spawn_wave()
+  local n=min(24,18+2*(wv-1))
+  local t1=flr(n*7/18+0.5)
+  local t2=flr(n*6/18+0.5)
+  local cnt={t1,t2,n-t1-t2}
+  local idx=0
+  for t=1,3 do
+    for i=1,cnt[t] do
+      local ea=-EB[t]+2*EB[t]*(i-1)/(cnt[t]-1)
+      add(en,{tr=t,ea=ea,dir=1,r=0,ca=idx/n,x=D1X,y=D1Y,dv=0,mc=0,fc=rnd(90)})
+      idx+=1
+    end
+  end
+end
+
 function _init()
   sang=0
   ft=0
@@ -43,18 +57,26 @@ function _init()
   ET=0
   lv=5
   wv=1
-  local idx=0
-  local tot=EN[1]+EN[2]+EN[3]
-  for t=1,3 do
-    for i=1,EN[t] do
-      local ea=-EB[t]+2*EB[t]*(i-1)/(EN[t]-1)
-      add(en,{tr=t,ea=ea,dir=1,r=0,ca=idx/tot,x=D1X,y=D1Y,dv=0,mc=0,fc=rnd(90)})
-      idx+=1
-    end
-  end
+  sc=0
+  frz=0
+  over=0
+  spawn_wave()
 end
 
 function _update()
+  if over==1 then return end
+  if frz>0 then
+    frz-=1
+    if frz<=0 then
+      wv+=1
+      ET=0
+      en={}
+      eshots={}
+      spawn_wave()
+    end
+    return
+  end
+
   if btn(0) then sang=max(-SC,sang-ST) end
   if btn(1) then sang=min(SC,sang+ST) end
   local shx,shy=arc_xy(CX,CY,SR,sang)
@@ -78,6 +100,7 @@ function _update()
   ET+=1
   local wfc=max(20,90-5*(wv-1))
   local dch=min(0.5,0.05+0.015*(wv-1))
+  local espd=ESPD*(1+0.08*(wv-1))
   for e in all(en) do
     if e.dv==1 then
       e.x+=e.dvx
@@ -96,7 +119,7 @@ function _update()
         e.r=ER[e.tr]
       end
     else
-      e.ea+=ESPD*e.dir
+      e.ea+=espd*e.dir
       local b=EB[e.tr]
       if e.ea>b then
         e.ea=b
@@ -154,11 +177,18 @@ function _update()
     for j=#en,1,-1 do
       local e=en[j]
       if abs(s.x-e.x)<3 and abs(s.y-e.y)<3 then
+        sc+=50*e.tr+(e.dv==1 and 50 or 0)
         del(shots,s)
         del(en,e)
         break
       end
     end
+  end
+
+  if lv<=0 then
+    over=1
+  elseif #en==0 and frz<=0 then
+    frz=36
   end
 end
 
@@ -175,8 +205,7 @@ function _draw()
     local ex,ey=arc_xy(CX,CY,200,SC*i/2)
     line(CX,CY,ex,ey,1)
   end
-  circfill(CX,CY,2,6)
-  circfill(D1X,D1Y,2,10)
+  circfill(CX,CY,2,0)
   for e in all(en) do
     local dx,dy=e.x-CX,e.y-CY
     local sz=mid(1,(60-sqrt(dx*dx+dy*dy))/10,3)
@@ -190,5 +219,5 @@ function _draw()
   for s in all(eshots) do
     pset(s.x,s.y,14)
   end
-  print("lv "..lv,2,2,7)
+  print("lv "..lv.." sc "..sc.." w "..wv,2,2,7)
 end

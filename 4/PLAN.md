@@ -53,17 +53,28 @@ Implemented in `4.p8` with placeholder visuals (pink `pset` for enemy shots, dis
 
 ## Phase 4: Waves & progression
 
-- [ ] Wave clears when its enemy count reaches 0
-- [ ] Next-wave enemy count `min(24, 18+2*(w-1))`, formation speed `base_espd*(1+0.08*(w-1))` (`base_espd = 0.5°/frame` default), feeding Phase 2/3's placement and behaviour formulas
-- [ ] Lives (5 start), score tracking: `50*arc_tier + (50 if diving when destroyed)` per kill
-- [ ] Verify: clearing every enemy on a wave triggers the next wave with a visibly larger/faster formation; losing all 5 lives ends the round; score increases correctly by arc tier and dive bonus
+- [x] Wave clears when its enemy count reaches 0
+- [x] Next-wave enemy count `min(24, 18+2*(w-1))`, formation speed `base_espd*(1+0.08*(w-1))` (`base_espd = 0.5°/frame` default), feeding Phase 2/3's placement and behaviour formulas
+- [x] Lives (5 start), score tracking: `50*arc_tier + (50 if diving when destroyed)` per kill
+- [ ] Verify (manual play test, not yet done): clearing every enemy on a wave triggers the next wave with a visibly larger/faster formation; losing all 5 lives ends the round; score increases correctly by arc tier and dive bonus
+
+Implemented in `4.p8` with a placeholder HUD readout (`lv N sc N w N`, top-left) standing in for Phase 6's real HUD; there's no `gs` state machine yet, so wave transition and game over are placeholder behaviours pending Phase 6's real screens, decided during review rather than left to guesswork:
+
+- **`base_espd`**: DESIGN.md's literal `0.5°/frame` (0.00139 turns/frame) predates Phase 2's fourth-pass tuning, which had already halved the live `ESPD` constant to `0.0007` for feel reasons. `base_espd` is the tuned `0.0007`, not the original spec number, so wave 1's formation speed matches what's already been played; the wave-scaling formula applies on top of it (`local espd=ESPD*(1+0.08*(wv-1))`, computed once per frame and used in place of the bare `ESPD` constant).
+- **Wave clear**: detected at the end of `_update()` (`#en==0`), which sets a 36-frame freeze counter (`frz`) rather than transitioning immediately. During the freeze, `_update()` returns early after decrementing `frz` (skipping ship movement, shot movement, and all enemy logic), so the playfield reads as frozen rather than continuing to animate with no enemies on screen — a placeholder for Phase 6's real wave-transition overlay, which will show "WAVE n" text over this same frozen frame instead of nothing.
+- **Wave re-entrance**: once the freeze ends, the next wave replays the *full* two-phase entrance (`ET=0`, `en`/`eshots` cleared, `spawn_wave()` called again) rather than spawning enemies directly into formation. This reuses Phase 2's entrance code unchanged at the cost of the same ~25.8s entrance repeating every wave; revisit if playtesting finds that too slow a cadence between waves.
+- **Tier split**: the enemy-count formula only specifies a wave total, not a per-tier split. A new `spawn_wave()` function (replacing the old fixed `EN={7,6,5}` table and its dedicated spawn loop in `_init()`, both removed) computes each tier's count by scaling the wave-1 7:6:5 ratio (`t1=flr(n*7/18+0.5)`, `t2=flr(n*6/18+0.5)`, `t3=n-t1-t2`), keeping the same inner-heaviest silhouette at every wave size (18→24) instead of skewing toward one tier as the count grows. `_init()` now just resets state and calls `spawn_wave()`, so wave 1's spawn and every later wave's respawn share one code path.
+- **Game over**: `lv<=0` sets an `over` flag; `_update()` returns immediately at the top when `over==1`, freezing the game permanently (no auto-restart) since Phase 6 hasn't added an End screen to transition to yet. `over` is checked before `frz`, so a lives-out and wave-clear on the same frame resolves as game over, not a wave transition.
+- **Score**: added at the point of a shot/enemy collision (`sc+=50*e.tr+(e.dv==1 and 50 or 0)`), since that's the one place both the killed enemy's tier and its diving state are already in scope; a diving enemy that's shot rather than one that hits the ship is what triggers the dive bonus, matching DESIGN.md's "destroyed while diving," not "was diving at some point."
 
 ## Phase 5: Token checkpoint (core systems)
 
-- [ ] Count tokens with Phases 1-4 implemented: ship movement, enemy arcs/formation, attack behaviour (fire, dive, miss-respawn), waves/progression, entity cap
-- [ ] Compare against a soft ceiling of ~4,000 tokens for core systems (roughly half the ~8,192 total), leaving room for Phase 6's screens/HUD and Phase 7's sprites/SFX
-- [ ] If over the soft ceiling, simplify before continuing (e.g. cut the miss-intensity stacking, simplify dive-vs-formation state, or move more shared math into `lib/`) rather than discovering the problem after art and sound are already built
-- [ ] Verify: token count recorded; explicit decision made (proceed, or simplify first) before starting Phase 6
+- [x] Count tokens with Phases 1-4 implemented: ship movement, enemy arcs/formation, attack behaviour (fire, dive, miss-respawn), waves/progression, entity cap
+- [x] Compare against a soft ceiling of ~4,000 tokens for core systems (roughly half the ~8,192 total), leaving room for Phase 6's screens/HUD and Phase 7's sprites/SFX
+- [x] If over the soft ceiling, simplify before continuing (e.g. cut the miss-intensity stacking, simplify dive-vs-formation state, or move more shared math into `lib/`) rather than discovering the problem after art and sound are already built
+- [x] Verify: token count recorded; explicit decision made (proceed, or simplify first) before starting Phase 6
+
+Measured via `p8tool stats 4.p8` (picotool): **1,415 tokens**, 220 lines, 4,567 chars. Well under the ~4,000 soft ceiling (about a third of it), so no simplification pass is needed; proceeding straight to Phase 6 with all of Phases 1-4's logic intact.
 
 ## Phase 6: Screens & flow
 
@@ -88,3 +99,9 @@ Implemented in `4.p8` with placeholder visuals (pink `pset` for enemy shots, dis
 
 - [ ] Confirm final token count is within the ~8,192 budget (second checkpoint, now including Phase 6/7's screens, sprites, and SFX on top of Phase 5's core-systems count)
 - [ ] Confirm a full wave at the entity cap (32 hostile entities plus ~8 player shots) renders without frame drops, given the extra per-frame trig from angle-based movement and the per-frame grid redraw
+
+## Future ideas (not scheduled)
+
+Not part of any numbered phase; captured here so they aren't lost, not committed to a phase or a token budget yet.
+
+- **Squad-diverse entrance patterns**: currently every enemy in phase 1 of the entrance orbits the same entry point `(D1X,D1Y)` at the same radius (`D1R`) and speed (`CSPD`), differing only by phase offset (`ca`) — visually uniform, one ring of dots circling one point. A future pass could split enemies into squads (by tier, or by spawn order) that orbit distinct points, radii, or speeds, or follow different entrance shapes entirely, so the top-of-screen entrance reads as several distinct groups arriving rather than one undifferentiated ring. No numbers decided yet: how many squads, what distinguishes them visually, and whether squad identity carries into formation (Phase 2) or attack behaviour (Phase 3) are all open. Revisit after Phase 7's sprite work, since squad identity likely wants a visual tag (colour or shape) to read clearly, and current placeholder visuals (single-pixel dots) can't support that distinction yet.
