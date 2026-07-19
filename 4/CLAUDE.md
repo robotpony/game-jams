@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Pico-8 game called "Gyri #4" — an arcade shooter with Atari 2600 aesthetics, Space Invaders/Galaga-style but with the player's and enemies' straight lines replaced by concentric arcs. The full spec is in [README.md](README.md), following [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
-**Status: not yet built.** No `.p8` cartridge exists in this folder yet, and several spec details are still open (see README's Open questions). Implementation should follow README.md and [DESIGN.md](DESIGN.md); once a `4.p8` cart exists, this file should be expanded with the actual architecture (state variables, game states, tile/sprite IDs, SFX slots) the way [`../3/CLAUDE.md`](../3/CLAUDE.md) documents game 3.
+**Status: Phase 1 of 8 implemented.** `4.p8` exists but only covers PLAN.md's Phase 1 (ship arc movement, hold-to-fire shooting), with placeholder visuals (a filled circle for the ship, single pixels for shots) rather than real sprites, which land in Phase 7. Phase 1's manual play-test verify step hasn't been run yet. The arc's orientation was corrected after Phase 1 was first built (it had been a downward-opening dome instead of an upward-opening valley — see DESIGN.md's Arc geometry note), and `4.p8`'s constants and shot direction were updated to match; PLAN.md's Phase 1 checklist still holds, but treat it as re-verify-needed rather than already-confirmed. Design for all 8 phases is locked, see README.md and [DESIGN.md](DESIGN.md) for exact numbers; DESIGN.md remains the source of truth until more phases land and this file grows a full Architecture section the way [`../3/CLAUDE.md`](../3/CLAUDE.md) documents game 3.
 
 ## Development
 
@@ -31,11 +31,15 @@ These constraints shape every implementation decision:
 
 ## Design summary (from README.md and DESIGN.md)
 
-- Ship holds an angular position on a fixed-radius arc near the bottom of the screen instead of an x-coordinate; left/right input sweeps that angle
-- Shots fire along the radius line through the ship's current angle, so shot direction changes with the ship's position on the arc
-- Enemies live on their own concentric arcs at smaller radii, closer to the implied off-screen centre, and sweep along them
-- A wave clears when every enemy on it is destroyed; wave-to-wave difficulty scaling isn't decided yet
-- Several values (arc geometry, enemy count/behaviour, lives, fire rate, scoring, palette, sound) aren't decided yet; don't invent them when implementing, check README's Open questions first
+- Ship holds an angular position on a fixed-radius arc near the bottom of the screen instead of an x-coordinate; left/right input sweeps that angle, clamped to ±69°
+- Hold-to-fire: shots repeat every 4 frames while held, along the radius line through the ship's current angle, so shot direction changes with the ship's position on the arc
+- Enemies live on three concentric arcs at *smaller* radii than the ship's own (53/43/33px vs the ship's 64px) — the shared centre sits above the ship, so a smaller radius is what puts an arc higher on screen, not a larger one
+- Enemies fire back radially *outward* (away from the shared centre, hence down toward the ship, the opposite direction from the player's own inward shots) on a wave-scaled cooldown, and occasionally dive at the ship; a total enemy+enemy-shot cap of 32 bounds concurrent entities
+- A diving enemy that misses never leaves the wave: it respawns at the outer edge of its arc's angular band (its highest reachable point, not its centred position) and comes back faster and more aggressive (a per-enemy miss counter, capped after ~7 misses). A wave clears only by killing every enemy on it, never by attrition
+- Ship, enemy, and shot sprites are distinct pixel art (not palette swaps of each other); shots share 3 sprites (straight/shallow/steep) mirrored via `flip_x`/`flip_y` to cover every reachable travel direction; outer-tier enemies render larger via `sspr` scaling instead of a separate sprite
+- A wave clears when every enemy on it is destroyed; the run is endless, with enemy count, speed, and aggression all scaling with wave number (formulas in DESIGN.md)
+- Ship colour is fixed (white) and never re-tints; every other colour (enemies, shots, background grid) rotates through a 4-wave theme cycle, defined in DESIGN.md's Palette section
+- All values are decided; DESIGN.md is the source of truth for exact numbers, don't re-derive or re-guess them during implementation
 
 ## Reusable code
 
