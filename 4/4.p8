@@ -1,7 +1,7 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
--- 4: gyri -- phase 3: enemy attack behaviour
+-- 4: gyri -- phase 6: screens & flow
 
 CX,CY=64,55
 SR=64
@@ -33,6 +33,37 @@ function arc_xy(cx,cy,r,a)
   return cx-r*sin(a),cy+r*cos(a)
 end
 
+-- lib/screen.lua
+-- call: if blink(2) then print("press x to start",...) end
+function blink(hz)
+  return (time()*hz)%2<1
+end
+
+-- lib/title.lua
+-- call from _draw(): if gs==0 then draw_title_card("GYRI #4") return end
+function draw_title_card(name)
+  cls(5)
+  local sw={7,10,11,3,6,8,1,0}
+  for i=0,7 do
+    rectfill(30+i*9,8,34+i*9,14,sw[i+1])
+  end
+  local l1="'26 WARPED GAME JAM"
+  print(l1,64-#l1*2,26,7)
+  print("PRESENTS",48,34,7)
+  print(name,64-#name*2,62,7)
+  if blink(2) then
+    local l2="PRESS X TO START"
+    print(l2,64-#l2*2,104,7)
+  end
+end
+
+function any_btnp()
+  for i=0,5 do
+    if btnp(i) then return true end
+  end
+  return false
+end
+
 function spawn_wave()
   local n=min(24,18+2*(wv-1))
   local t1=flr(n*7/18+0.5)
@@ -48,7 +79,7 @@ function spawn_wave()
   end
 end
 
-function _init()
+function newgame()
   sang=0
   ft=0
   shots={}
@@ -58,14 +89,24 @@ function _init()
   lv=5
   wv=1
   sc=0
-  frz=0
-  over=0
+  gs=1
   spawn_wave()
 end
 
+function _init()
+  gs=0
+end
+
 function _update()
-  if over==1 then return end
-  if frz>0 then
+  if gs==0 then
+    if any_btnp() then newgame() end
+    return
+  end
+  if gs==3 then
+    if any_btnp() then gs=0 end
+    return
+  end
+  if gs==2 then
     frz-=1
     if frz<=0 then
       wv+=1
@@ -73,6 +114,7 @@ function _update()
       en={}
       eshots={}
       spawn_wave()
+      gs=1
     end
     return
   end
@@ -186,13 +228,26 @@ function _update()
   end
 
   if lv<=0 then
-    over=1
-  elseif #en==0 and frz<=0 then
+    gs=3
+  elseif #en==0 then
     frz=36
+    gs=2
+  end
+end
+
+function draw_end()
+  cls(0)
+  print("game over",44,50,8)
+  print("score "..sc,40,64,7)
+  print("wave "..wv,40,74,7)
+  if blink(2) then
+    print("press x",44,100,7)
   end
 end
 
 function _draw()
+  if gs==0 then draw_title_card("GYRI #4") return end
+  if gs==3 then draw_end() return end
   cls(0)
   local d=GD0
   for i=1,GN do
@@ -219,5 +274,13 @@ function _draw()
   for s in all(eshots) do
     pset(s.x,s.y,14)
   end
-  print("lv "..lv.." sc "..sc.." w "..wv,2,2,7)
+  print("lv"..lv,2,121,7)
+  local ss="sc"..sc
+  print(ss,64-#ss*2,121,7)
+  local ws="w"..wv
+  print(ws,126-#ws*4,121,7)
+  if gs==2 then
+    local wt="wave "..(wv+1)
+    print(wt,64-#wt*2,60,7)
+  end
 end

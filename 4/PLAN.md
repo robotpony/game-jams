@@ -78,11 +78,13 @@ Measured via `p8tool stats 4.p8` (picotool): **1,415 tokens**, 220 lines, 4,567 
 
 ## Phase 6: Screens & flow
 
-- [ ] Title screen: call the shared `draw_title_card("GYRI #4")` from [`../lib/title.lua`](../lib/title.lua); paste `blink()` (`lib/screen.lua`) and `draw_title_card()` into `4.p8`'s `__lua__` section rather than hand-rolling
-- [ ] Wave-transition overlay: "WAVE n" text over the frozen playfield, holds 36 frames (1.2s)
-- [ ] End screen: final score and wave reached
-- [ ] HUD (y=120-127): lives left, score centre, wave right
-- [ ] Verify: full loop is playable start to finish, title → game → wave transition → ... → end → title
+- [x] Title screen: call the shared `draw_title_card("GYRI #4")` from [`../lib/title.lua`](../lib/title.lua); paste `blink()` (`lib/screen.lua`) and `draw_title_card()` into `4.p8`'s `__lua__` section rather than hand-rolling
+- [x] Wave-transition overlay: "WAVE n" text over the frozen playfield, holds 36 frames (1.2s)
+- [x] End screen: final score and wave reached
+- [x] HUD (y=120-127): lives left, score centre, wave right
+- [ ] Verify (manual play test, not yet done): full loop is playable start to finish, title → game → wave transition → ... → end → title
+
+Implemented in `4.p8` by replacing the ad hoc `over`/`frz`-return placeholders from Phases 3-4 with a real `gs` state variable matching DESIGN.md's state table exactly (0 title, 1 game, 2 wave transition, 3 end). `_update()` now branches on `gs` at the very top instead of checking `over==1`/`frz>0` as separate early returns; the wave-transition branch (`gs==2`) is the same 36-frame `frz` countdown Phase 4 already had, just moved out of the main update path and paired with a state change instead of an in-place return. A `newgame()` function (full state reset: ship angle, shots, enemies, `ET`, lives, wave, score, then `spawn_wave()`) replaces the reset logic that used to live only in `_init()`; `_init()` itself now just sets `gs=0`, and `newgame()` is called both from the title screen (any button) and would be called again from a future restart path. `any_btnp()` (loop over `btnp(0..5)`) gates both the title-to-game and end-to-title transitions, copied from game 3's pattern (`3.p8`) rather than re-derived. The wave-transition overlay shows `"wave "..(wv+1)` (the upcoming wave, not the one just cleared, since `wv` itself doesn't increment until the freeze ends) centred at y=60 over whatever the frozen playfield already contains — because enemies are already empty by the time the freeze starts (it's triggered by `#en==0`), the "frozen playfield" is in practice just the background grid, ship, and any still-in-flight shots (which also stop moving during the freeze, since `_update()` returns early for `gs==2`). The real HUD replaces the placeholder `lv N sc N w N` line with three separately-positioned strings on one line at y=121 (lives left-aligned at x=2, score centred at `64-#s*2` reusing `title.lua`'s centring convention, wave right-aligned at `126-#s*4`), with the placeholder `line(0,120,127,120,7)` kept as a visual HUD separator rather than removed. `draw_end()` is a new function (score, wave reached, blinking "press x" prompt, following game 3's `draw_end()` shape but with this game's own fields). Token count after this phase: 1,714 (`p8tool stats`), up from Phase 5's 1,415 checkpoint, still well under the ~8,192 total budget with Phase 7's sprites/SFX still to come.
 
 ## Phase 7: Visuals & sound polish
 
