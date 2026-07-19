@@ -130,6 +130,33 @@ function spawn_wave()
       idx+=1
     end
   end
+  local ndiv=min(5,wv)
+  for i=1,ndiv do
+    local j
+    repeat j=flr(rnd(n))+1 until en[j].dt==nil
+    en[j].dt=20+(i-1)*40
+  end
+end
+
+function start_dive(e,shx,shy,ed)
+  e.dv=1
+  e.ed=ed
+  sfx(3)
+  e.dvsg=e.ea<0 and -1 or 1
+  local ddx,ddy=shx-e.x,shy-e.y
+  local dl=max(1,sqrt(ddx*ddx+ddy*ddy))
+  local sp=DVSPD*(1+0.08*(wv-1))*min(2,1+0.15*e.mc)
+  e.dvx=ddx/dl*sp
+  e.dvy=ddy/dl*sp
+end
+
+function end_dive(e)
+  e.dv=0
+  if e.ed==0 then
+    e.ea=e.dvsg*EB[e.tr]
+    e.dir=-e.dvsg
+    e.r=ER[e.tr]
+  end
 end
 
 function newgame()
@@ -234,17 +261,13 @@ function _update()
       if abs(e.x-shx)<3 and abs(e.y-shy)<3 then
         lv=max(0,lv-1)
         sfx(2)
-        e.dv=0
-        e.ea=e.dvsg*EB[e.tr]
-        e.dir=-e.dvsg
-        e.r=ER[e.tr]
+        end_dive(e)
       elseif e.x<0 or e.x>127 or e.y<0 or e.y>127 then
-        e.dv=0
         e.mc=min(7,e.mc+1)
-        e.ea=e.dvsg*EB[e.tr]
-        e.dir=-e.dvsg
-        e.r=ER[e.tr]
+        end_dive(e)
       end
+    elseif e.dt and e.dt==ET then
+      start_dive(e,shx,shy,1)
     else
       e.ea+=espd*e.dir
       local b=EB[e.tr]
@@ -273,16 +296,7 @@ function _update()
             local dx,dy=arc_xy(0,0,1,e.ea)
             add(eshots,{x=e.x,y=e.y,vx=dx*ESSPD,vy=dy*ESSPD,sp=shsp(e.ea),fx=e.ea<0})
           end
-          if rnd(1)<dch/30 then
-            e.dv=1
-            sfx(3)
-            e.dvsg=e.ea<0 and -1 or 1
-            local ddx,ddy=shx-e.x,shy-e.y
-            local dl=max(1,sqrt(ddx*ddx+ddy*ddy))
-            local sp=DVSPD*(1+0.08*(wv-1))*min(2,1+0.15*e.mc)
-            e.dvx=ddx/dl*sp
-            e.dvy=ddy/dl*sp
-          end
+          if rnd(1)<dch/30 then start_dive(e,shx,shy,0) end
         end
       end
     end
