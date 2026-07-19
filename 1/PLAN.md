@@ -22,7 +22,7 @@ All four phases complete.
 
 ## Phase 3: Screens
 
-- [x] Title screen: "This is #1, a test game", prompt to start
+- [x] Title screen: "This is #1, a test game", prompt to start (later retrofitted to the shared jam title card, see `1/CLAUDE.md`)
 - [x] Game over screen: shows final score, any button returns to title
 - [x] Level transitions: 18-frame black/white flicker between levels
 

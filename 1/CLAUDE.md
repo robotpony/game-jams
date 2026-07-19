@@ -54,6 +54,8 @@ _draw()   -- called 30fps: clear screen, draw map, player, HUD
 
 **Screen flash** — On item pickup, set `flash_t` (frames) and `flash_c` (colour). In `_draw()` during playing state, if `flash_t > 0`, fill the game area with `flash_c` instead of drawing the maze, then decrement.
 
+**Title screen** — Uses the shared jam title card from [`../lib/title.lua`](../lib/title.lua) and [`../lib/screen.lua`](../lib/screen.lua) (`draw_title_card`, `blink`), pasted into this cart's `__lua__` section. `gs==2` calls `draw_title_card("#1")`; no per-game title-drawing code remains.
+
 ### Game states
 
 | `gs` | Name | Triggered by |
@@ -103,3 +105,11 @@ next_seed -- seed for incoming level
 next_tp   -- true: spawn at teleport tile; false: spawn at start
 trans_t   -- transition countdown (18 frames)
 ```
+
+## Reusable code
+
+Check [`../lib/CLAUDE.md`](../lib/CLAUDE.md) for shared Lua snippets before writing new utility code from scratch. This cart pastes in `blink()` (`lib/screen.lua`) and `draw_title_card()` (`lib/title.lua`) for its title screen; everything else here predates extraction and remains bespoke.
+
+### Known bugs
+
+Tracked in [`../BUGS.md`](../BUGS.md#1--maze-game) (entries 1.1–1.3): teleport increments the level counter by the seed offset instead of by 1, the exit tile isn't guaranteed a slot when placing items onto dead ends, and the timer resets on teleport though README only documents that for Exit and Treasure.

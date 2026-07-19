@@ -1,10 +1,11 @@
-# 1 README
+# #1 Maze Runner
 
-This is a simple game built using Claude and Pico-8. Follows the format in [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
+A simple maze game. Watch out for the traps and monsters!
 
-The game looks like an Atari 2600 game. Colours, sprites, and fonts should approximate the Atari 2600 aesthetic using Pico-8's palette.
 
 ## Game overview
+
+The game looks like an Atari 2600 game. Colours, sprites, and fonts should approximate the Atari 2600 aesthetic using Pico-8's palette.
 
 A maze game with a 60-second countdown timer per level. The player explores a single-screen maze collecting treasures and avoiding traps before finding the exit.
 
@@ -12,7 +13,7 @@ A maze game with a 60-second countdown timer per level. The player explores a si
 
 | Scene | Shows | Enters from | Exits to |
 | ----- | ----- | ------------ | -------- |
-| Title | "This is #1, a test game", blinking "press x to start" prompt, movement instructions | Startup | Any button → Game |
+| Title | Shared jam title card: colour-swatch strip, "'26 WARPED GAME JAM", "#1", blinking "press x to start" prompt | Startup | Any button → Game |
 | Game | 16×15 maze, HUD (score, level, timer) | Title, or Transitioning complete | Exit or teleport collected → Transitioning; score < 0 or timer = 0 → Game over |
 | Transitioning | HUD stays visible; 18-frame black/white flicker over the maze | Exit or teleport collected | Flicker complete → Game, next level loaded |
 | Game over | Final score | Score < 0, or timer reaches 0 | Any button → Title |
