@@ -16,7 +16,7 @@ Implemented in `4.p8` with placeholder visuals only (filled circle for the ship,
 
 ## Phase 2: Enemy arcs & formation
 
-- [ ] Three enemy arcs at radii 53/43/33 (centred position y=78/68/58, band-edge/topmost y≈59/58/54), angular bands ±50°/±40°/±30°
+- [ ] Three enemy arcs at radii 53/43/33 (centred position y=108/98/88, band-edge/topmost y≈89/88/84), angular bands ±50°/±40°/±30°
 - [ ] Wave 1 starting counts: 7/6/5 (18 total), evenly spaced within each arc's band
 - [ ] Enemies sweep back and forth within their arc's band
 - [ ] Shot/enemy collision detection (player shot vs enemy)

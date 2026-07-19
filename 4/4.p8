@@ -3,7 +3,7 @@ version 42
 __lua__
 -- 4: gyri -- phase 1: ship arc movement & radial shooting
 
-CX,CY=64,25
+CX,CY=64,55
 SR=64
 SC=0.19167
 ST=0.00556
@@ -49,6 +49,7 @@ end
 
 function _draw()
   cls(0)
+  line(0,120,127,120,7)
   local sx,sy=arc_xy(CX,CY,SR,sang)
   circfill(sx,sy,3,7)
   for s in all(shots) do

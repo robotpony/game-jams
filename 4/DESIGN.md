@@ -11,23 +11,23 @@ Game:
 ```
 y=0
   |  open sky above the arc's implied centre
-y=25    ship's arc centre; also the height of its untrimmed
-  |     endpoints (x=0 and x=128), where the arc meets the
-  |     screen edges (the whole reason this is a valley, see
-  |     Core system design's Arc geometry note)
-  |  enemy arcs: three concentric bands between the centre and
-  |  the ship, topmost reach (outer band edge) y≈54, ranging to
-  |  y≈78 (inner tier's centred position) — exact per-tier
-  |  values in Core system design
 y=30    grid horizon line: scanlines fade to black here
   |  background scanline grid, 8 fixed rows (see Core system
   |  design), brightest near the bottom, fading toward y=30
-y=48    ship's position at full ±69° trim (near the screen edges)
-  |  ship's arc: 180° half-circle, radius 64, centred (64, 25),
+y=55    ship's arc centre; also the height of its untrimmed
+  |     endpoints (x=0 and x=128), where the arc meets the
+  |     screen edges (the whole reason this is a valley, see
+  |     Core system design's Arc geometry note)
+y=78    ship's position at full ±69° trim (near the screen edges)
+  |  ship's arc: 180° half-circle, radius 64, centred (64, 55),
   |  opening upward (a valley, not a dome): the ship sweeps up
   |  toward the screen edges rather than down away from them
-y=89    ship's centred/rest position (the valley floor)
-y=119   bottom of grid's foreground band
+  |  enemy arcs: three concentric bands between the centre and
+  |  the ship, topmost reach (outer band edge) y≈84, ranging to
+  |  y≈108 (inner tier's centred position) — exact per-tier
+  |  values in Core system design
+y=119   ship's centred/rest position (the valley floor), sitting
+  |     just above the HUD
 y=120   HUD line (8px): lives left, score centre, wave right
 y=127
 ```
@@ -70,25 +70,25 @@ Background fill (`cls()`) is always black (0); the grid's horizon band blends in
 
 ## Core system design
 
-**Arc geometry** — All arcs (ship and enemy) are concentric circles around a shared centre point `(cx, cy) = (64, 25)`, which sits near the top of the play area. A point on any arc at angle `a` (in pico-8 turns, `a=0` straight down from the centre) is `x = cx - r*sin(a)`, `y = cy + r*cos(a)` (see `lib/math.lua`'s `arc_xy()`; the sin term is negated to correct for pico-8's inverted `sin()`, and the cos term is *added*, not subtracted, so the shape opens upward — a valley, not a dome). Because `cy` is near the top of the screen, a *smaller* `r` keeps a point closer to the centre and therefore higher up the screen (smaller `y`); a *larger* `r` sits further from the centre and therefore lower, nearer the bottom. The ship's own arc uses the largest radius in the system, 64px, the widest a full 180° half-circle can use without exceeding the 128px screen (for a semicircle, on-screen width is always 2x its apex-to-endpoint height, so capping height at 64px caps width at exactly 128px) — and, at that radius, the arc's untrimmed endpoints land exactly at `x=0` and `x=128`, satisfying the requirement that the arc run edge to edge like a U. Enemy arcs sit *above* the ship (between it and the centre) and therefore need radii *smaller* than 64, so they sit closer to `(cx,cy)` and higher up the screen.
+**Arc geometry** — All arcs (ship and enemy) are concentric circles around a shared centre point `(cx, cy) = (64, 55)`, which sits near the top of the play area. A point on any arc at angle `a` (in pico-8 turns, `a=0` straight down from the centre) is `x = cx - r*sin(a)`, `y = cy + r*cos(a)` (see `lib/math.lua`'s `arc_xy()`; the sin term is negated to correct for pico-8's inverted `sin()`, and the cos term is *added*, not subtracted, so the shape opens upward — a valley, not a dome). Because `cy` is near the top of the screen, a *smaller* `r` keeps a point closer to the centre and therefore higher up the screen (smaller `y`); a *larger* `r` sits further from the centre and therefore lower, nearer the bottom. The ship's own arc uses the largest radius in the system, 64px, the widest a full 180° half-circle can use without exceeding the 128px screen (for a semicircle, on-screen width is always 2x its apex-to-endpoint height, so capping height at 64px caps width at exactly 128px) — and, at that radius, the arc's untrimmed endpoints land exactly at `x=0` and `x=128`, satisfying the requirement that the arc run edge to edge like a U. Enemy arcs sit *above* the ship (between it and the centre) and therefore need radii *smaller* than 64, so they sit closer to `(cx,cy)` and higher up the screen.
 
 An earlier draft of this design had the centre *below* the play area, which produces the opposite shape: a dome, with the ship's centred position at the top of its sweep and enemies further still above it via *larger* radii. That was backwards. Ships come from the top of the screen, so the player's arc needs to open upward toward them (a valley, low in the middle, rising to the edges), not curve over them (a dome). Every formula below reflects the corrected orientation.
 
-**Ship movement & trim** — The ship's state is an angle `sang`, measured from straight down (0) at `(cx,cy) = (64,25)`, so `sang=0` is the ship's centred, resting position (the valley floor, `y=89`) and increasing `|sang|` sweeps it up toward the screen edges. Screen position is the sprite's centre, `x,y = arc_xy(64,25,64,sang)`, drawn via `spr()` offset by `(-4,-4)`. To keep the ship's 8x8 sprite fully on-screen at full deflection, its centre must stay within `x ∈ [4, 124]`; this constraint only touches the x-formula (unchanged by the geometry fix above), so the trim derivation itself carries over exactly: solving `64 - 64*sin(sang) <= 124`-equivalent gives `sang <= 69.64°`, rounded down to `sang` clamped to `[-69°, 69°]` (a 21° trim off the true ±90° endpoints). At full trim, `y = 25 + 64*cos(69°) ≈ 48`. Left/right input adjusts `sang` at `sturn = 2°/frame` (a default, tune once playable), clamped within that range; the full ±69° sweep takes about 69 frames (2.3s at 30fps) end to end. Horizontal displacement per unit of `sang` is proportional to `cos(sang)`, largest at the resting centre and shrinking toward the endpoints, so the ship's on-screen horizontal speed for a constant angular input decelerates approaching either end of the sweep. This is a consequence of the geometry, not a separate tuning curve, and is worth confirming feels right once playable.
+**Ship movement & trim** — The ship's state is an angle `sang`, measured from straight down (0) at `(cx,cy) = (64,55)`, so `sang=0` is the ship's centred, resting position (the valley floor, `y=119`) and increasing `|sang|` sweeps it up toward the screen edges. Screen position is the sprite's centre, `x,y = arc_xy(64,55,64,sang)`, drawn via `spr()` offset by `(-4,-4)`. To keep the ship's 8x8 sprite fully on-screen at full deflection, its centre must stay within `x ∈ [4, 124]`; this constraint only touches the x-formula (unchanged by the geometry fix above), so the trim derivation itself carries over exactly: solving `64 - 64*sin(sang) <= 124`-equivalent gives `sang <= 69.64°`, rounded down to `sang` clamped to `[-69°, 69°]` (a 21° trim off the true ±90° endpoints). At full trim, `y = 55 + 64*cos(69°) ≈ 78`. Left/right input adjusts `sang` at `sturn = 2°/frame` (a default, tune once playable), clamped within that range; the full ±69° sweep takes about 69 frames (2.3s at 30fps) end to end. Horizontal displacement per unit of `sang` is proportional to `cos(sang)`, largest at the resting centre and shrinking toward the endpoints, so the ship's on-screen horizontal speed for a constant angular input decelerates approaching either end of the sweep. This is a consequence of the geometry, not a separate tuning curve, and is worth confirming feels right once playable.
 
-**Radial shots (player)** — Hold-to-fire: while the fire button is held, a shot spawns every 4 frames at the ship's current screen position, direction the *inward* unit vector at `sang` at the moment of firing (`arc_xy(0,0,-1,sang)`, i.e. toward the centre `(64,25)` and therefore up, since the ship sits at the largest radius in the system and the enemies it's shooting at sit at smaller radii, closer to centre), travelling at 4px/frame until off-screen or it hits an enemy. Because `sang` can change between shots, consecutive shots fired while sweeping the ship travel in different, non-parallel directions.
+**Radial shots (player)** — Hold-to-fire: while the fire button is held, a shot spawns every 4 frames at the ship's current screen position, direction the *inward* unit vector at `sang` at the moment of firing (`arc_xy(0,0,-1,sang)`, i.e. toward the centre `(64,55)` and therefore up, since the ship sits at the largest radius in the system and the enemies it's shooting at sit at smaller radii, closer to centre), travelling at 4px/frame until off-screen or it hits an enemy. Because `sang` can change between shots, consecutive shots fired while sweeping the ship travel in different, non-parallel directions.
 
 **Enemy arcs** — Three arcs, all above the ship's arc (radii smaller than 64, per Arc geometry above, so they sit closer to the centre and higher up the screen). Each tier's angular band is a stylistic choice, not a hard constraint: at these radii the arc's full ±90° would already stay within `x ∈ [4, 124]` (max horizontal deviation from centre is the radius itself, and the largest of the three, 53px, is well under the 60px margin), so narrower bands are chosen for a formation look rather than to avoid clipping:
 
 | Arc | Radius | y at `ea=0` (centred) | y at band edge (topmost) | Angular band | Starting enemy count |
 | --- | ------ | ---------------------- | -------------------------- | ------------- | --------------------- |
-| Inner (closest to ship) | 53px | 78 | 59 | ±50° | 7 |
-| Middle | 43px | 68 | 58 | ±40° | 6 |
-| Outer (topmost) | 33px | 58 | 54 | ±30° | 5 |
+| Inner (closest to ship) | 53px | 108 | 89 | ±50° | 7 |
+| Middle | 43px | 98 | 88 | ±40° | 6 |
+| Outer (topmost) | 33px | 88 | 84 | ±30° | 5 |
 
 18 enemies total on wave 1. Enemies sweep back and forth within their arc's band. Each enemy independently, on a wave-scaled interval, either fires or breaks formation to dive:
 
-- **Fire** — a shot spawns at the enemy's current screen position, direction the *outward* unit vector at the enemy's current angle `ea`: `arc_xy(0,0,1,ea)`, i.e. away from the centre `(64,25)` and therefore down, toward the ship. This is the same direction convention as the player's own shots use (both are "away from centre" or "toward centre" depending on which side of the ship they're on) but the opposite sign, since the player sits at the largest radius (64, shooting inward toward smaller-radius enemies) while enemies sit at smaller radii (shooting outward toward the larger-radius ship). The shot travels until it hits the ship or goes off-screen past the bottom.
+- **Fire** — a shot spawns at the enemy's current screen position, direction the *outward* unit vector at the enemy's current angle `ea`: `arc_xy(0,0,1,ea)`, i.e. away from the centre `(64,55)` and therefore down, toward the ship. This is the same direction convention as the player's own shots use (both are "away from centre" or "toward centre" depending on which side of the ship they're on) but the opposite sign, since the player sits at the largest radius (64, shooting inward toward smaller-radius enemies) while enemies sit at smaller radii (shooting outward toward the larger-radius ship). The shot travels until it hits the ship or goes off-screen past the bottom.
 - **Dive** — the enemy leaves its arc position and moves in a straight line toward the ship's last-known position at `dive_spd * min(2, 1 + 0.15*ei.dv)` px/frame, where `ei.dv` is that enemy's own miss counter (see below). If it hits the ship, resolve as a player hit. If it goes off-screen without hitting the ship, it does **not** leave the wave: it re-enters at the *top* of its arc, which is the outer edge of its angular band (`ea = ±B` for that tier, whichever the enemy was nearer when it started diving), not `ea=0` — `ea=0` is each tier's centred position, but because the arc opens upward, the band edges are actually the highest (smallest-`y`) points an enemy in that tier can reach, not `ea=0`. It resumes formation-sweep behaviour from there, `ei.dv` incremented by 1. Each miss also tightens that specific enemy's own fire cooldown: `max(20, wave_fire_cooldown - 10*ei.dv)`, floored at the same global 20-frame minimum as the wave-level ramp. The multiplier and cooldown reduction are both capped (`ei.dv` effectively saturates past ~7 misses) so one persistently-dodged enemy can't spiral indefinitely. Because a diving enemy is never actually removed except by being killed, a wave can only clear through kills, not through the player dodging attrition away — this was a deliberate fix over an earlier draft where a missed dive silently decremented the wave's live count. A diving enemy occupies a slot in the 32-entity concurrent cap only while it's actively on-screen (formation, mid-dive, or freshly respawned); the brief off-screen instant between miss and respawn doesn't hold one.
 
 **Wave progression & difficulty ramp** — A wave ends when its enemy count reaches 0. For wave `w` (starting at 1):
