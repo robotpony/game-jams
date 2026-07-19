@@ -1,18 +1,16 @@
-# 2 README
+# #2 Somewhat possible mission
 
 This is an action/platform/puzzle game built using Claude and Pico-8. Follows the format in [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
 The game looks like an Atari 2600 game. Colours, sprites, and fonts should approximate the Atari 2600 aesthetic using Pico-8's palette. It's a vastly simplified remake of Impossible Mission (Epyx, 1984).
 
-**Status: not yet built.** Design is finalized; no `.p8` cartridge exists in this folder yet.
-
 ## Game overview
 
-The player starts in an elevator, viewed from the side as if the wall is cut away. The elevator moves up or down and automatically stops, but only at floors that have a corridor; floors with neither are simply scrolled past. It hums softly with a faint buzz while moving.
+The player starts in an elevator, viewed from the side as if the wall is cut away. It moves up or down, auto-stopping at floors with a corridor and humming with a faint buzz while it moves. Floors with no corridor just scroll past.
 
-The shaft has 16 floors. Each floor is randomized as having a left corridor, a right corridor, both, or neither; a floor with both leads to two independent rooms, one off each side. The shaft itself is narrow, and a corridor isn't a separate place: on a floor with an open corridor, the walkable area of that same elevator screen simply extends from the shaft out to the screen's edge, where the door is. The player walks out of the narrow shaft column, across the blank corridor stretch, and through that edge door into the room, arriving on its bottom floor. Entering from the left, the player arrives beside the room's right-hand wall walking further left; entering from the right, beside its left-hand wall walking further right; movement stays continuous in the same direction the whole trip, and crossing either door pauses briefly (about 300ms) before control returns, in both directions. Most rooms have 3 floors connected by an automatically moving centre lift, with robots and searchable objects (garbage cans, desks with computers, vending machines, shelves, and the occasional terminal) on each floor. A room's state persists once generated: searched objects stay empty and robots keep their position if the player leaves and comes back.
+Each floor may have a corridor on the left, the right, both, or neither. A corridor isn't a separate screen: it's just the elevator screen's walkable area extending out to a door at the screen edge. Walking through a door leads into a room. Most rooms have 3 floors linked by an automatic centre lift, with robots and searchable objects (garbage cans, desks, vending machines, shelves, and the occasional terminal) on each floor. A room's state persists: searched objects and robot positions carry over if the player leaves and comes back. See [Elevator & rooms](#elevator--rooms) for the exact entry/exit rules.
 
-Searching an object can yield health, extra time, or a puzzle-piece letter, one of a set of 10 that spell a secret word (picked per seed from a short word list); a terminal instead opens a reusable help screen. The generator guarantees at least 10 valid rooms among the 16 floors and places one letter in each of the first 10; every other non-terminal object holds health or a clock instead. The control room sits behind the last (deepest) valid room in the shaft. Reaching it shows the secret word as blank letter slots; the player arranges their collected letters into the blanks and submits. A correct arrangement wins; a wrong one costs 1 HP and can be retried without limit.
+Searching an object can yield health, extra time, or a puzzle-piece letter; a terminal instead opens a reusable help screen. Ten letters, found across the first 10 valid rooms, spell a secret word. The control room, behind the last valid room in the shaft, shows the word as blank slots; the player arranges their letters into the blanks and submits. A correct arrangement wins; a wrong one costs 1 HP and can be retried without limit.
 
 ## Scenes
 
@@ -34,11 +32,13 @@ Transitions: elevator movement implies scrolling by floor as it moves (constant 
 - Generation: 16 floors, each randomized as left corridor, right corridor, both (two independent rooms), or neither, seeded. The generator re-rolls the seed until at least 10 floors resolve to a valid room. Puzzle rooms are randomized from 4 patterns that vary robot and object density per floor side (light/medium/heavy), not room structure. Puzzles must be solvable, and robots must be jumpable with skill.
 - The elevator only stops at floors with a corridor; a "neither" floor is scrolled past without stopping. If the shaft's very top or bottom floor happens to be "neither", the car simply can't reach it — it stops at the nearest corridor floor instead.
 - Corridor: not a separate place, just the part of the elevator screen between the narrow shaft column and the screen's edge, on any floor with an open corridor on that side. Same blank background as the rest of the shaft. No objects or robots in it, just floor space to walk across; jumping there is just a faster way to cross it, since there's nothing to clear.
-- Centre lift: a platform moving automatically between a room's 3 floors, pausing briefly at each. While riding it, the player can move and jump freely, the same as standing on any floor or corridor; walking off either edge lands on whichever floor the lift is nearest to, and jumping off it can catch the lift again mid-air (whether it's paused or moving) or miss it entirely. The bottom floor is solid ground, walkable straight across; only the gap on the top and middle floors is a hazard. Walking or jumping into an open gap while the lift isn't there starts a real fall, not an instant penalty: drifting sideways under momentum lands safely on whichever floor below is reached, and catching the lift mid-transit also lands safely. Falling all the way to the bottom floor costs HP scaled to how far the player fell (1 HP from the middle floor, 2 HP from the top), landing them there in place rather than resetting to the room's entry door.
+- Centre lift: a platform moving automatically between a room's 3 floors, pausing briefly at each. While riding it, the player can move and jump freely, the same as on any floor or corridor. Walking off either edge lands on whichever floor the lift is nearest to. Jumping off it can catch the lift again mid-air (whether it's paused or moving) or miss it entirely.
+- The bottom floor is solid ground, walkable straight across; only the gap on the top and middle floors is a hazard. Walking or jumping into an open gap while the lift isn't there starts a real fall, not an instant penalty: drifting sideways under momentum lands safely on whichever floor below is reached, and catching the lift mid-transit also lands safely. Falling all the way down costs HP scaled to the distance fallen (1 HP from the middle floor, 2 HP from the top), landing the player in place rather than resetting them to the room's entry door.
 - Secret word: 10 letters, picked per seed from a short hardcoded word list (`IMPOSSIBLE`, `INFILTRATE`, `DEMOLITION`, `ELECTRICAL`, `MECHANICAL`). One letter is placed in each of the first 10 valid rooms (in shaft order); every object in rooms beyond the 10th holds a health pickup instead. The control room sits behind the last valid room in the shaft, whatever that room's letter status.
 - Room persistence: once a room is generated, its state sticks. Objects already searched stay empty and robots keep their current position and pattern state if the player leaves and returns.
 - Placement rules: no more than 1 robot per floor side (left or right); no more than 2 items per floor side. A robot never crosses the centre lift gap; it's confined to the side of the floor it spawned on, for every movement pattern, including chase.
-- Search: standing in front of an object and holding up raises the player's hands. A comic-style bubble appears above the player with a progress bar, 0 to 10, about half a second per step. An object's contents stay hidden until the search actually starts, at which point its icon (health cross, letter tile, clock, or terminal) shows inside the bubble alongside the progress count — checking every object is the only way to know what it holds. At 10, the object's contents are added to the player's inventory (or, for a clock, added to the timer) and the bubble disappears; finding a letter also shows a brief "found: X" popup with the letter tile. Searching a terminal instead opens a full-screen help overlay (controls, the letter/win goal, and an object legend), still 10 steps but each one twice as fast (~2.5s total); the screen pauses the game and ignores input for the first 3 seconds, so it can't be closed before it's readable, then dismisses on any button. A terminal isn't consumed by this, so it can be searched again later. Releasing up (or getting hit) pauses the bar at its current step rather than resetting it, and holding up again in front of the same object resumes from there — except for a terminal, where releasing early cancels the attempt back to 0 instead of pausing it.
+- Search: standing in front of an object and holding up raises the player's hands. A comic-style bubble appears above the player with a progress bar, 0 to 10, about half a second per step. An object's contents stay hidden until the search actually starts; checking every object is the only way to know what it holds. At 10, the contents are added to the player's inventory (or, for a clock, the timer) and the bubble disappears; finding a letter also shows a brief "found: X" popup. Releasing up, or getting hit, pauses the bar at its current step rather than resetting it; holding up again resumes from there.
+- Terminal search works the same way but at double speed (~2.5s total) and opens a full-screen help overlay instead of adding to inventory. The overlay pauses the game and ignores input for the first 3 seconds, so it can't be closed before it's readable, then dismisses on any button. A terminal isn't consumed, so it can be searched again later; releasing up early cancels its progress back to 0 instead of pausing it.
 - Robots, 3 movement patterns:
   - Stationary: looks left and right at random intervals, beeping on each look.
   - Patrol: moves left and right at some speed, pausing a random amount of time at each end.
@@ -55,16 +55,16 @@ Transitions: elevator movement implies scrolling by floor as it moves (constant 
 - Player steps make a percussive sound.
 - Resources:
   - HP starts at 5. A robot hit costs 1 HP plus a brief knockback; falling all the way to the bottom floor during a lift-shaft fall costs 1-2 HP depending on how far the player fell (a fall can also be recovered from safely, see Elevator & rooms); a wrong puzzle submission in the control room costs 1 HP.
-  - Inventory begins with one letter.
+  - Inventory begins empty.
 
 ## Items
 
 | Item | Effect | Visual feedback |
 | ---- | ------ | --------------- |
-| Health pickup | Restores 2 HP | Object contents are hidden until a search actually starts (design reversal — see Elevator & rooms); a green cross/plus icon then shows in the search progress bubble, added to inventory once the search completes |
-| Puzzle letter | Adds one letter to inventory, toward the secret word (1 of 10 total) | Hidden until search starts; a yellow letter tile with the letter shows in the search progress bubble, added to inventory once the search completes |
-| Clock | Adds 60 seconds to the timer | Hidden until search starts; a clock icon shows in the search progress bubble. Roughly 1 in 4 non-letter objects are a clock instead of health |
-| Terminal | Opens a help screen (controls, letter/win goal, object legend); pauses the game while shown, and ignores input for the first 3 seconds so it can't be dismissed before it's even readable | Its own furniture kind, only placed on the bottom floor next to the entry door (not a random fill of the other 4 anywhere in the room), always shows a terminal icon in the search bubble. Still a full 10-step search, but each step is twice as fast as normal (~2.5s total); releasing up before completion cancels the attempt entirely, unlike every other object, which only pauses. Reusable — searching it again re-opens the help screen, it's never consumed |
+| Health pickup | Restores 2 HP | Green cross/plus icon, revealed in the search bubble once searching starts |
+| Puzzle letter | Adds one letter to inventory (1 of 10 total) | Yellow letter tile, revealed in the search bubble; also triggers the "found: X" popup |
+| Clock | Adds 60 seconds to the timer | Clock icon, revealed in the search bubble. Roughly 1 in 4 non-letter objects is a clock instead of health |
+| Terminal | Opens a reusable help screen (controls, letter/win goal, object legend); see Search above for its timing | Terminal icon; only placed on the bottom floor next to the entry door, never elsewhere |
 
 ## Game over conditions
 
@@ -82,7 +82,7 @@ Transitions: elevator movement implies scrolling by floor as it moves (constant 
 | Player footstep | Percussive |
 | Player jump | Quick rising whoosh |
 | Player landing | Short percussive thump, on completing a jump's arc |
-| Robot look/turn | Two-note "bleep-bloop", on every look-flip, patrol turn, chase direction change, and the chase "thinks" pause; capped at once per 3 seconds per robot, so a robot rapidly re-triggering (e.g. jittering right at the player's position while chasing) doesn't spam it |
+| Robot look/turn | Two-note "bleep-bloop", on every look-flip, patrol turn, chase direction change, and the chase "thinks" pause |
 | Robot move | Short buzzy blip, repeated periodically while actively moving (patrol, chase, or fleeing) |
 | Robot hit (player) | Harsh, low percussive/noise hit |
 | Search progress tick | Short blip, once per progress step |

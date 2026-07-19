@@ -31,6 +31,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 EXPORTS_DIR = SCRIPT_DIR / "exports"
 DOWNLOADS_DIR = SCRIPT_DIR / "downloads"
+GAMES_DIR = SCRIPT_DIR / "games"
 
 
 def read(path: Path):
@@ -150,6 +151,19 @@ def collect_game(dir_: Path) -> dict:
     }
 
 
+def write_game_page(game: dict):
+    """Writes preview/games/<n>.html: a standalone dark page with just this
+    game's live embed and its README + DESIGN below, for a direct link to a
+    single entry (independent of the index.html console)."""
+    data = {"game": game}
+    json_blob = json.dumps(data)
+    json_blob = re.sub(r"</script", "<\\/script", json_blob, flags=re.IGNORECASE)
+    title = game["title"] or f"Game {game['num']}"
+    html = GAME_TEMPLATE.replace("__TITLE__", title).replace("__DATA__", json_blob)
+    GAMES_DIR.mkdir(parents=True, exist_ok=True)
+    (GAMES_DIR / f"{game['num']}.html").write_text(html, encoding="utf-8")
+
+
 def main():
     game_dirs = sorted(
         (d for d in ROOT.iterdir() if d.is_dir() and d.name.isdigit()),
@@ -168,9 +182,13 @@ def main():
     html = TEMPLATE.replace("__DATA__", json_blob)
     (SCRIPT_DIR / "index.html").write_text(html, encoding="utf-8")
 
+    for g in games:
+        write_game_page(g)
+
     built = sum(1 for g in games if g["hasCart"])
     embedded = sum(1 for g in games if g["embedPath"])
     print(f"Wrote preview/index.html — {len(games)} games ({built} built, {embedded} with a live embed)")
+    print(f"Wrote preview/games/<n>.html for {len(games)} games")
     for g in games:
         if g["hasCart"] and not g["embedPath"]:
             print(f"  game {g['num']}: cart exists but no live embed — {g['embedStatus']}")
@@ -528,6 +546,181 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     touchStartX = null; touchStartY = null;
   }, {passive: true});
+
+  const toggle = document.getElementById('theme-toggle');
+  toggle.addEventListener('click', () => {
+    if(document.body.classList.contains('dark')){
+      document.body.classList.remove('dark');
+      localStorage.setItem('pref-theme', 'light');
+    } else {
+      document.body.classList.add('dark');
+      localStorage.setItem('pref-theme', 'dark');
+    }
+  });
+
+  const topLink = document.getElementById('top-link');
+  window.addEventListener('scroll', () => {
+    const show = document.body.scrollTop > 400 || document.documentElement.scrollTop > 400;
+    topLink.style.visibility = show ? 'visible' : 'hidden';
+    topLink.style.opacity = show ? '1' : '0';
+  });
+});
+</script>
+</body>
+</html>
+"""
+
+GAME_TEMPLATE = r"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__ — Warped 2026 Summer Game Jam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../theme/reset.css">
+<link rel="stylesheet" href="../theme/theme-vars.css">
+<link rel="stylesheet" href="../theme/header.css">
+<link rel="stylesheet" href="../theme/warped.css">
+<script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+.main{position:relative; max-width:calc(var(--main-width) + var(--gap) * 2); margin:auto; padding:var(--gap)}
+.back-link{display:inline-block; margin-bottom:var(--gap); font-family:"Montserrat",sans-serif; font-weight:600; font-size:.8em; letter-spacing:.5px; color:var(--secondary)}
+.game-title{font-family:"Montserrat",sans-serif; font-weight:700; font-size:1.4em; color:var(--primary); margin-bottom:2px}
+.game-tagline{display:block; font-size:.9em; color:var(--secondary); font-style:italic; margin-bottom:var(--gap)}
+
+.game-embed{
+  width:100%; aspect-ratio:1 / 1; max-width:480px; margin:0 auto var(--gap);
+  background:#000; border-radius:8px; overflow:hidden;
+}
+.game-embed iframe{width:100%; height:100%; border:0; display:block}
+.game-embed .placeholder{
+  color:#999; text-align:center; padding:20px; font-size:.85em;
+  font-family:-apple-system,sans-serif; display:flex; flex-direction:column;
+  justify-content:center; height:100%; box-sizing:border-box;
+}
+.game-embed .placeholder strong{display:block; font-size:1.2em; letter-spacing:1px; color:#eee; margin-bottom:6px; font-family:Menlo,Consolas,monospace}
+
+.game-docs{
+  background:#0b0f0c; color:#39ff6a; font-family:Menlo,Consolas,monospace; font-size:.8em;
+  padding:16px; border-radius:8px; overflow-x:auto;
+}
+.game-docs a{color:#7dffb0}
+.game-docs h1,.game-docs h2,.game-docs h3,.game-docs h4,.game-docs h5,.game-docs strong{
+  color:#7dffb0; font-family:inherit;
+}
+.game-docs h1,.game-docs h2,.game-docs h3{
+  font-size:1em; text-transform:uppercase; letter-spacing:1px; margin:1em 0 .3em;
+}
+.game-docs h1:first-child,.game-docs h2:first-child,.game-docs h3:first-child{margin-top:0}
+.game-docs table{width:100%; border-collapse:collapse; font-size:.9em; margin:.6em 0}
+.game-docs th,.game-docs td{border-bottom:1px solid #1e5c34; padding:3px 5px; text-align:left}
+.game-docs .doc-label{
+  color:#39ff6a; text-transform:uppercase; letter-spacing:2px; font-size:.9em; margin:1em 0 .3em; opacity:.8;
+}
+.game-docs .doc-label:first-child{margin-top:0}
+.game-docs hr{border:0; border-top:1px dashed #1e5c34; margin:1em 0}
+.game-docs pre{background:#06110a; padding:8px; border-radius:4px; overflow-x:auto}
+.game-docs code{background:#06110a; padding:1px 4px; border-radius:3px}
+.game-docs .placeholder{color:#2e8a52}
+
+footer.footer{text-align:center; padding:var(--gap) 0}
+</style>
+</head>
+<body class="list dark" id="top">
+<script>
+if (localStorage.getItem("pref-theme") === "light") {
+    document.body.classList.remove('dark');
+} else {
+    document.body.classList.add('dark');
+}
+</script>
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://warpedvisions.org/" accesskey="h" title="warpedvisions.org (Alt + H)">warpedvisions.org</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+            <p class="tagline"><a href="https://warpedvisions.org/">ESSAYS</a>, <a href="https://warpedvisions.org/food">RECIPES</a>, AND <a href="https://warpedvisions.org/projects">GENERAL MAKERY</a> BY <a href="https://warpedvisions.org/pages/about-bruce-alderson">BRUCE ALDERSON</a>.</p>
+        </div>
+        <ul id="menu"></ul>
+    </nav>
+</header>
+
+<main class="main">
+  <a class="back-link" href="../index.html">&larr; All games</a>
+  <h1 class="game-title" id="game-title"></h1>
+  <span class="game-tagline" id="game-tagline"></span>
+
+  <div class="game-embed" id="game-embed"></div>
+  <div class="game-docs" id="game-docs"></div>
+</main>
+
+<footer class="footer">
+    <span>&copy; 2026 <a href="https://warpedvisions.org/pages/about-warpedvisions-dot-org/">warpedvisions.org</a></span> ·
+    <span><a href="https://mas.to/@robotpony">@robotpony mas.to</a></span> ·
+    <span class="kudos">Powered by <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a></span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script id="site-data" type="application/json">__DATA__</script>
+<script src="../theme/warped.js" defer></script>
+<script>
+const GAME = JSON.parse(document.getElementById('site-data').textContent).game;
+
+function md(text){
+  if(!text) return '';
+  return window.marked ? window.marked.parse(text) : '<pre>' + text.replace(/</g,'&lt;') + '</pre>';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('game-title').textContent = GAME.title || `Game ${GAME.num}`;
+  const tagline = document.getElementById('game-tagline');
+  if(GAME.tagline){ tagline.textContent = GAME.tagline; } else { tagline.remove(); }
+
+  const embed = document.getElementById('game-embed');
+  if(GAME.embedPath){
+    embed.innerHTML = `<iframe src="../${GAME.embedPath}" loading="lazy" allow="autoplay"></iframe>`;
+  } else {
+    const hint = GAME.hasCart
+      ? 'Cart exists, but no playable web export yet.'
+      : 'Design is in progress.';
+    embed.innerHTML = `<div class="placeholder"><strong>(GAME NOT READY)</strong>${hint}</div>`;
+  }
+
+  const sections = [
+    ['SPEC', GAME.docs.readme],
+    ['DESIGN', GAME.docs.design],
+  ].filter(([, text]) => text);
+  const docs = document.getElementById('game-docs');
+  docs.innerHTML = sections.length
+    ? sections.map(([label, text]) => `<p class="doc-label">${label}</p>${md(text)}`).join('<hr>')
+    : '<div class="placeholder">No docs yet.</div>';
 
   const toggle = document.getElementById('theme-toggle');
   toggle.addEventListener('click', () => {
