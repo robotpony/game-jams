@@ -14,6 +14,7 @@ EB={0.13889,0.11111,0.08333}
 ESPD=0.0007
 RGR=1
 LX,RX,D1Y=32,96,12
+TX,TY=64,12
 D1R=10
 CSPD=0.01
 ND1=360
@@ -33,6 +34,11 @@ GP3={1,2,1,2}
 WT={8,11,12,2}
 WA={13,3,6,5}
 ESP={1,7,8}
+WZ1=20
+WZ2=15
+WZ3=10
+WZ4=30
+WZ5=15
 
 -- lib/math.lua
 -- pico-8's sin() is inverted (sin(x)==-sin(2*pi*x)) for its y-down screen
@@ -97,7 +103,19 @@ function shipspr(th)
   return a<SL1 and 0 or (a<SL2 and 5 or 6)
 end
 
+function zoompos()
+  if ws==1 then
+    local p=1-frz/WZ1
+    return zx0+(CX-zx0)*p,zy0+(CY-zy0)*p
+  else
+    local p=1-frz/WZ2
+    return CX+(TX-CX)*p,CY+(TY-CY)*p
+  end
+end
+
 function spawn_wave()
+  local php=10+5*(wv-1)
+  pl={{x=LX,hp=php},{x=RX,hp=php}}
   local n=min(24,18+2*(wv-1))
   local t1=flr(n*7/18+0.5)
   local t2=flr(n*6/18+0.5)
@@ -143,14 +161,30 @@ function _update()
   end
   if gs==2 then
     frz-=1
+    if ws<=2 then
+      local zx,zy=zoompos()
+      local frac=WZ1/(WZ1+WZ2)
+      local p=ws==1 and (1-frz/WZ1)*frac or frac+(1-frz/WZ2)*(1-frac)
+      local zc=p<0.33 and 1 or (p<0.66 and 6 or 7)
+      add(trail,{x=zx,y=zy,c=zc})
+    end
     if frz<=0 then
-      wv+=1
-      ET=0
-      en={}
-      eshots={}
-      pt={}
-      spawn_wave()
-      gs=1
+      ws+=1
+      if ws==2 then frz=WZ2
+      elseif ws==3 then frz=WZ3
+      elseif ws==4 then
+        frz=WZ4
+        wv+=1
+        ET=0
+        en={}
+        eshots={}
+        pt={}
+        sang=0
+        trail={}
+        spawn_wave()
+      elseif ws==5 then frz=WZ5
+      else gs=1
+      end
     end
     return
   end
@@ -274,14 +308,27 @@ function _update()
 
   for i=#shots,1,-1 do
     local s=shots[i]
-    if abs(s.y-D1Y)<3 and (abs(s.x-LX)<3 or abs(s.x-RX)<3) then
-      sc+=200
-      sfx(6)
-      for k=1,5 do
-        local pa=rnd(1)
-        add(pt,{x=s.x,y=s.y,vx=cos(pa)*rnd(1.5),vy=sin(pa)*rnd(1.5),t=10+rnd(5),c=10})
+    for j=1,2 do
+      local p=pl[j]
+      if p.hp>0 and abs(s.y-D1Y)<3 and abs(s.x-p.x)<3 then
+        p.hp-=1
+        sc+=200
+        if p.hp<=0 then
+          sfx(1)
+          for k=1,14 do
+            local pa=rnd(1)
+            add(pt,{x=p.x,y=D1Y,vx=cos(pa)*rnd(3),vy=sin(pa)*rnd(3),t=15+rnd(15),c=10})
+          end
+        else
+          sfx(6)
+          for k=1,5 do
+            local pa=rnd(1)
+            add(pt,{x=p.x,y=D1Y,vx=cos(pa)*rnd(1.5),vy=sin(pa)*rnd(1.5),t=10+rnd(5),c=10})
+          end
+        end
+        del(shots,s)
+        break
       end
-      del(shots,s)
     end
   end
 
@@ -297,7 +344,10 @@ function _update()
     gs=3
     sfx(5)
   elseif #en==0 then
-    frz=36
+    ws=1
+    frz=WZ1
+    zx0,zy0=shx,shy
+    trail={}
     gs=2
     sfx(4)
   end
@@ -313,12 +363,7 @@ function draw_end()
   end
 end
 
-function _draw()
-  if gs==0 then draw_title_card("GYRI #4") return end
-  if gs==3 then draw_end() return end
-  cls(0)
-  local ecol=WT[(wv-1)%4+1]
-  local acol=WA[(wv-1)%4+1]
+function draw_backdrop()
   local d=GD0
   for i=1,GN do
     local pat=i<=3 and GP1 or (i<=5 and GP2 or GP3)
@@ -332,8 +377,20 @@ function _draw()
     line(CX,CY,ex,ey,1)
   end
   circfill(CX,CY,2,0)
-  spr(10,LX-4,D1Y-4)
-  spr(10,RX-4,D1Y-4)
+end
+
+function draw_trail()
+  for i=2,#trail do
+    line(trail[i-1].x,trail[i-1].y,trail[i].x,trail[i].y,trail[i].c)
+  end
+end
+
+function draw_game()
+  draw_backdrop()
+  if pl[1].hp>0 then spr(10,pl[1].x-4,D1Y-4) end
+  if pl[2].hp>0 then spr(10,pl[2].x-4,D1Y-4) end
+  local ecol=WT[(wv-1)%4+1]
+  local acol=WA[(wv-1)%4+1]
   pal(8,ecol)
   pal(12,acol)
   for e in all(en) do
@@ -359,12 +416,35 @@ function _draw()
   print("lv"..lv,2,121,7)
   local ss="sc"..sc
   print(ss,64-#ss*2,121,7)
-  local ws="w"..wv
-  print(ws,126-#ws*4,121,7)
+  local wst="w"..wv
+  print(wst,126-#wst*4,121,7)
+end
+
+function _draw()
+  if gs==0 then draw_title_card("GYRI #4") return end
+  if gs==3 then draw_end() return end
+  cls(0)
   if gs==2 then
-    local wl="wave "..(wv+1)
-    print(wl,64-#wl*2,60,7)
+    if ws<=2 then
+      draw_backdrop()
+      draw_trail()
+      local zx,zy=zoompos()
+      spr(0,zx-4,zy-4)
+    elseif ws==3 then
+      draw_backdrop()
+      draw_trail()
+      circfill(TX,TY,140*(1-frz/WZ3),7)
+    elseif ws==4 then
+      cls(7)
+      local wl="new wave "..wv
+      print(wl,64-#wl*2,60,WT[(wv-1)%4+1])
+    else
+      draw_game()
+      circfill(TX,TY,140*frz/WZ5,7)
+    end
+    return
   end
+  draw_game()
 end
 
 __gfx__

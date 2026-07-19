@@ -10,7 +10,7 @@ The game looks like an Atari 2600 game. Colours, sprites, and fonts approximate 
 
 The player's ship holds a fixed angular position on an arc near the bottom of the screen, an inverted-rainbow curve whose implied centre sits off-screen above the play area, so the arc opens upward like a U rather than curving over the ship like a dome — the ship rests low in the middle and sweeps up toward the screen edges. Moving left or right sweeps the ship's position along that arc rather than sliding it along a straight line. Firing is hold-to-fire: holding the button repeats shots at a fast, steady rate, each travelling inward along the radius line running from the ship's current position toward the implied centre (and therefore up, toward the enemies). A shot's exact direction depends on wherever the ship happens to be on the arc when it fires: a shot from the left end angles up and to the left, a shot from the middle fires straight up, and so on.
 
-Enemies occupy three concentric arcs above the ship, in a full Galaga-scale formation (18 enemies on wave 1). They sweep back and forth along their arcs, periodically fire radial shots back at the ship along the same kind of trajectory the player uses, and occasionally break formation to dive at the ship. A wave clears once every enemy on it is destroyed. Two fixed "planet" targets flank the top of the screen throughout every wave; shooting one is worth bonus points but is optional and has no bearing on clearing the wave. The run is endless: there's no final wave, only an escalating one, and it ends when the player runs out of lives.
+Enemies occupy three concentric arcs above the ship, in a full Galaga-scale formation (18 enemies on wave 1). They sweep back and forth along their arcs, periodically fire radial shots back at the ship along the same kind of trajectory the player uses, and occasionally break formation to dive at the ship. A wave clears once every enemy on it is destroyed. Two fixed boss planets flank the top of the screen throughout every wave, each taking 10 hits on wave 1 (+5 per wave after) to destroy in a burst of particles; shooting one is worth bonus points per hit but is entirely optional and has no bearing on clearing the wave, and a destroyed planet returns at full health next wave. The run is endless: there's no final wave, only an escalating one, and it ends when the player runs out of lives.
 
 ## Scenes
 
@@ -18,7 +18,7 @@ Enemies occupy three concentric arcs above the ship, in a full Galaga-scale form
 | ----- | ----- | ------------ | -------- |
 | Title | Shared jam title card: colour-swatch strip, "'26 WARPED GAME JAM", "GYRI #4", blinking start prompt | Startup | Any button → Game |
 | Game | Arc playfield (ship and enemies on concentric arcs), scanline grid, HUD | Title, or wave transition complete | All enemies on the current wave destroyed → Wave transition; lives reach 0 → End |
-| Wave transition | Ship zooms to the shared centre then a fixed top point, trailing a line that turns white; screen irises to white, "NEW WAVE n" holds in the upcoming wave's colour, then irises back to reveal the next wave already loaded | All enemies on the current wave destroyed | 5-stage sequence complete (~3s) → Game, next wave loaded |
+| Wave transition | Ship zooms to the shared centre then a fixed top point, trailing a line that turns white; screen irises to white, "NEW WAVE n" holds in the new wave's colour, then irises back to reveal the next wave already loaded | All enemies on the current wave destroyed | 5-stage sequence complete (~3s) → Game, next wave loaded |
 | End | Final score, wave reached | Game, on lives reaching 0 | Any button → Title |
 
 ## Core mechanic: arc movement & radial shooting
@@ -64,7 +64,7 @@ There's no win condition. The run is endless; difficulty escalates wave over wav
 | Ship shot | White (7) | One of 3 shared shot sprites (straight/shallow/steep), picked and mirrored by travel angle, pointing inward/up, drawn at half size (4×4) |
 | Enemy shot | Matches that wave's enemy colour | Same 3 shared shot sprites, `flip_y`'d to point outward/down, also drawn at half size |
 | Background grid | Dark blue (5), fixed, never re-tints | Line pairs converging on the shared centre, denser near the middle, sparser toward either screen edge (see DESIGN.md) |
-| Entry points ("planets") | Yellow (10), fixed, never re-tints | Small dots flanking the top of the screen; shootable all wave for a score bonus (see DESIGN.md's Scoring) |
+| Boss planets | Yellow/red, fixed, never re-tint (the Saucer alien, see DESIGN.md's Sprite rendering) | Two fixed targets flanking the top of the screen; take 10 hits on wave 1 (+5/wave) to destroy in a particle burst, worth a score bonus per hit, optional and non-gating (see DESIGN.md's Boss planets note) |
 
 ## Progression
 
