@@ -39,7 +39,7 @@ The game looks like an Atari 2600 game. Colours, sprites, and fonts should appro
 
 | Scene | Shows | Enters from | Exits to |
 | ----- | ----- | ------------ | -------- |
-| Title | Intellivision-style colour-band frame, blocky "3 FALLING", blinking start prompt | Startup | Any button → Game |
+| Title | Shared jam title card: colour-swatch strip, "'26 WARPED GAME JAM", "3 FALLING", blinking start prompt | Startup | Any button → Game |
 | Game | Playfield (items fall from the top), player paddle, HUD | Title, or "play again" from End | Lives hit 0, or timer reaches 90s → End |
 | Combo flash | Screen fills with the combo colour, "COMBO" text overlay | 3 matching catches in a row | 500ms (15 frames) → resumes Game |
 | End | Shared win/loss layout: headline ("GAME OVER" on loss, "YOU SURVIVED" on win), final score, items caught, items missed | Game | Any button → Title |

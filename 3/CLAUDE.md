@@ -57,6 +57,8 @@ _draw()   -- called 30fps: dispatches to draw_title / draw_end / combo flash / g
 
 **HUD** — drawn every frame at y=113+ over the playfield: lives left, last-3-caught colour swatches centred, score right (floored at 0 via `max(0,score)`).
 
+**Title screen** — Uses the shared jam title card from [`../lib/title.lua`](../lib/title.lua) and [`../lib/screen.lua`](../lib/screen.lua) (`draw_title_card`, `blink`), pasted into this cart's `__lua__` section. `gs==0` calls `draw_title_card("3 FALLING")` directly in `_draw()`; the old per-game `draw_title()` function is gone. `draw_end()`'s "press any button" prompt also now uses `blink(2)` instead of a hand-rolled counter.
+
 ### Game states
 
 | `gs` | Name | Triggered by |
@@ -91,7 +93,6 @@ colc, colsc, catch_sfx, combo_sfx
 -- screen
 gs        -- game state: 0=title 1=playing 2=end
 t         -- frame counter, 0-2700 (90s at 30fps)
-blink_t   -- 0-29, drives the title/end "press any button" blink
 
 -- difficulty
 spd, base_spd, pspd  -- current/base fall speed, paddle move speed
@@ -122,9 +123,7 @@ caught_ct, missed_ct
 
 ### Known deviations from DESIGN.md
 
-- **No per-catch paddle flash.** DESIGN.md specifies a red-catch flash (hit indicator) and an orange-catch flash (white/green) on the paddle itself. The shipped cart only flashes the screen on a *combo* trigger (`flash_t`/`flash_c` in `trigger_combo`); individual red/orange catches change `pseg` with no visual feedback beyond the paddle resizing next frame.
-- **Title, combo, and end-screen text are lowercase.** README/DESIGN quote these in uppercase ("3 FALLING", "COMBO", "GAME OVER", "YOU SURVIVED", implying Pico-8's bold block font), but the code calls `print()` with lowercase strings (`"3 falling"`, `"combo"`, `"game over"`, `"you survived"`), which renders in Pico-8's thinner lowercase glyph set rather than the "large blocky" look DESIGN.md describes.
-- **Title frame is nested outlines, not stripes.** `draw_title()` draws 5 concentric 1px-thick rectangle borders in the item palette order. DESIGN.md's "alternating stripes in the item palette" is ambiguous between this and horizontal/vertical bands; worth confirming this reads as intended before calling the title screen done.
+Tracked in [`../BUGS.md`](../BUGS.md#3--falling) (entries 3.1–3.3): no per-catch paddle flash, title/combo/end-screen text printed lowercase instead of the spec's quoted uppercase, and an ambiguous read of "alternating stripes" on the title frame.
 
 ## Reusable code
 
