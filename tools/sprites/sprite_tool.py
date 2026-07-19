@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""Author and patch Pico-8 8x8 sprites without an external image editor.
+
+A sprite is a plain-text file: 8 lines, each 8 hex characters (0-f), one
+Pico-8 palette index per pixel. See sprite_tool.py --help for subcommands.
+
+No third-party dependencies (PNG output is hand-rolled via zlib/struct so
+this runs with a stock python3).
+"""
+import argparse
+import struct
+import sys
+import zlib
+from pathlib import Path
+
+# Standard Pico-8 palette (RGB), indices 0-15.
+PALETTE_NAMES = [
+    "black", "dark blue", "dark purple", "dark green",
+    "brown", "dark grey", "light grey", "white",
+    "red", "orange", "yellow", "green",
+    "teal", "dark red", "pink", "peach",
+]
+# Block glyphs, one per palette index, for terminal ASCII rendering
+# (ANSI truecolour doesn't render in all consoles, so shape/glyph carries
+# the signal instead of colour; index 0 is always background/transparent).
+SYMBOLS = " #@%+=*o0xX&$~^:;"[:16]
+
+PALETTE = [
+    (0, 0, 0), (29, 43, 83), (126, 37, 83), (0, 135, 81),
+    (171, 82, 54), (95, 87, 79), (194, 195, 199), (255, 241, 232),
+    (255, 0, 77), (255, 163, 0), (255, 236, 39), (0, 228, 54),
+    (41, 173, 255), (131, 118, 156), (255, 119, 168), (255, 204, 170),
+]
+
+
+def load_sprite(path):
+    lines = [l.strip() for l in Path(path).read_text().splitlines() if l.strip()]
+    if len(lines) != 8 or any(len(l) != 8 for l in lines):
+        raise ValueError(f"{path}: expected 8 lines of 8 hex chars, got {lines}")
+    return [[int(c, 16) for c in line] for line in lines]
+
+
+def write_png(rgb_rows, path, scale=32):
+    w = len(rgb_rows[0]) * scale
+    h = len(rgb_rows) * scale
+    raw = bytearray()
+    for row in rgb_rows:
+        scaled_row = b"".join(bytes(row[x]) * scale for x in range(len(row)))
+        for _ in range(scale):
+            raw.append(0)  # filter byte
+            raw.extend(scaled_row)
+
+    def chunk(tag, data):
+        c = tag + data
+        return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c))
+
+    png = b"\x89PNG\r\n\x1a\n"
+    png += chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+    png += chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+    png += chunk(b"IEND", b"")
+    Path(path).write_bytes(png)
+
+
+def cmd_preview(args):
+    grid = load_sprite(args.sprite)
+    rgb_rows = [[PALETTE[c] for c in row] for row in grid]
+    write_png(rgb_rows, args.out, scale=args.scale)
+    print(f"wrote {args.out}")
+
+
+def sprite_hex_rows(grid):
+    """8 rows of 8 hex chars (low nibble = left pixel, per Pico-8 __gfx__ spec)."""
+    return ["".join(f"{c:x}" for c in row) for row in grid]
+
+
+def cmd_ascii(args):
+    """Print sprite(s) side by side as glyph grids, for fast terminal review.
+
+    Each palette index maps to a fixed glyph (see SYMBOLS); a legend below
+    lists which glyph is which colour whenever a sprite uses more than
+    black/one foreground colour. Glyphs, not ANSI colour, carry the shape
+    signal here since not every console this runs in renders 24-bit colour.
+    """
+    sprites = [load_sprite(p) for p in args.sprites]
+    labels = [Path(p).stem for p in args.sprites]
+
+    gap = "  "
+    cell = lambda c: f"{SYMBOLS[c]} "
+    header = gap.join(label.center(16) for label in labels)
+    print(header)
+    for row_i in range(8):
+        line_parts = ["".join(cell(c) for c in grid[row_i]) for grid in sprites]
+        print(gap.join(line_parts))
+    print()
+
+    used = sorted({c for grid in sprites for row in grid for c in row} - {0})
+    if used:
+        legend = "  ".join(f"{SYMBOLS[c]}={PALETTE_NAMES[c]}({c})" for c in used)
+        print("legend: " + legend)
+
+
+def cmd_patch(args):
+    grid = load_sprite(args.sprite)
+    new_rows = sprite_hex_rows(grid)  # 8 rows x 8 chars for this one sprite
+    idx = args.index
+    sx = (idx % 16) * 8  # char column within a 128-char gfx row
+    sy = (idx // 16) * 8  # gfx row
+
+    cart = Path(args.cart)
+    text = cart.read_text()
+    lines = text.split("\n")
+
+    try:
+        gfx_start = lines.index("__gfx__") + 1
+    except ValueError:
+        # No __gfx__ section yet: insert one right after __lua__'s content,
+        # i.e. before __label__/__gff__/__sfx__/__map__, whichever comes first.
+        insert_at = len(lines)
+        for marker in ("__label__", "__gff__", "__sfx__", "__map__", "__music__"):
+            if marker in lines:
+                insert_at = lines.index(marker)
+                break
+        blank_row = "0" * 128
+        gfx_block = ["__gfx__"] + [blank_row] * 128
+        lines[insert_at:insert_at] = gfx_block
+        gfx_start = insert_at + 1
+
+    for i in range(8):
+        row = lines[gfx_start + sy + i]
+        if len(row) < 128:
+            row = row.ljust(128, "0")
+        lines[gfx_start + sy + i] = row[:sx] + new_rows[i] + row[sx + 8:]
+
+    cart.write_text("\n".join(lines))
+    print(f"patched sprite {idx} into {args.cart} at gfx row {sy}, col {sx}")
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    pv = sub.add_parser("preview", help="render a sprite file to a scaled-up PNG")
+    pv.add_argument("sprite", help="path to an 8x8 hex-grid sprite file")
+    pv.add_argument("out", help="output PNG path")
+    pv.add_argument("--scale", type=int, default=32)
+    pv.set_defaults(func=cmd_preview)
+
+    pa = sub.add_parser("patch", help="write a sprite into a cart's __gfx__ section")
+    pa.add_argument("cart", help="path to the .p8 cartridge file")
+    pa.add_argument("sprite", help="path to an 8x8 hex-grid sprite file")
+    pa.add_argument("index", type=int, help="sprite sheet slot, 0-255")
+    pa.set_defaults(func=cmd_patch)
+
+    asc = sub.add_parser("ascii", help="print sprite(s) as glyph grids in the terminal")
+    asc.add_argument("sprites", nargs="+", help="one or more sprite files to show side by side")
+    asc.set_defaults(func=cmd_ascii)
+
+    args = p.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

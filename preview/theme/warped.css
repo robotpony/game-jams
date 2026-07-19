@@ -1,0 +1,931 @@
+:root {
+    --kudos-color: #333;
+    --kudos-color-dark: #ddd;
+    --link-bg-light: #f7f7f7;
+    --link-bg-dark: #333;
+    --link-hover-light: #bbb;
+    --link-hover-dark: #444;
+    --tagline-border: #666;
+    --warped-blue: #689fd6;
+    --warped-green: #68d6a1;
+    --warped-yellow: #d6cb68;
+    --warped-orange: #d6a668;
+    --warped-red: #d68168;
+    --code-bg: #444;
+    --code-text: #f8f8f2;
+    --home-bg: rgb(245, 245, 245);
+    --button-bg: rgb(245, 245, 245);
+}
+footer.footer .kudos {
+    color: var(--kudos-color);
+}
+.dark footer.footer .kudos {
+    color: var(--kudos-color-dark);
+}
+main article.draft {
+    display: none;
+}
+
+header.header.header {
+    position: relative;
+    max-width: calc(var(--main-width) + var(--gap) * 2);
+    margin: auto;
+    padding: var(--gap);
+}
+header nav div.logo {
+    display: block;
+    text-align: center;
+    width: 100%;
+}
+header nav div.logo > a {
+    font-family: "Montserrat", sans-serif;
+    font-weight: 600;
+    opacity: 0.85 !important;
+    letter-spacing: 7px;
+    font-size: 1.75em;
+    line-height: 1.5em;
+}
+span.entry-hint {
+    position: absolute;
+    height: 24px;
+    left: -128px;
+    opacity: .5;
+}
+span.entry-hint svg {
+    position: relative;
+    top: 4px;
+    width: 32px;
+    height: 32px;
+}
+
+header nav div.logo div.logo-switches {
+    position: absolute;
+    right: 10px;
+    top: 20px;
+}
+
+header nav div.logo p.tagline {
+    display: block;
+    position: relative;
+    top: -5px;
+    font-family: "Alumni Sans Pinstripe", serif;
+    text-transform: uppercase !important;
+    text-align: center;
+    letter-spacing: 2px;
+    font-size: 0.85em;
+    line-height: 0.85em;
+    color: var(--primary);
+    width: 100%;
+    margin-block-start: 0;
+    margin-block-end: 0;
+}
+header nav div.logo p.tagline a {
+    display: inline-block;
+    padding: 0.15em 0.25em;
+    background-color: var(--link-bg-light);
+    font-size: 1em;
+    border-bottom: 1px solid rgba(0, 0, 0, 0);
+}
+
+header nav div.logo p.tagline a:active,
+header nav div.logo p.tagline a:focus,
+header nav div.logo p.tagline a:hover {
+    background-color: var(--link-hover-light);
+    border-bottom: 1px solid var(--tagline-border);
+    -webkit-transition: all 0.2s ease-out;
+    -moz-transition: all 0.2s ease-out;
+    -o-transition: all 0.2s ease-out;
+
+    transition: all 200ms ease-in-out;
+    border-bottom-style: solid;
+    text-decoration: none !important;
+    box-shadow: none !important;
+    border-radius: 3px;
+}
+.dark header nav div.logo p.tagline a {
+    background-color: var(--link-bg-dark);
+}
+.dark header nav div.logo p.tagline a:active,
+.dark header nav div.logo p.tagline a:focus,
+.dark header nav div.logo p.tagline a:hover {
+    background-color: var(--link-hover-dark);
+}
+
+article figure.entry-cover p,
+header nav div.logo p.tagline a,
+header nav div.logo p.tagline,
+footer.footer span,
+.post-meta,
+.entry-footer {
+    font-family: "Alumni Sans Pinstripe", serif;
+    font-weight: 500;
+    text-transform: uppercase !important;
+    text-align: center;
+    letter-spacing: 2px;
+}
+article.post-single header {
+    position: relative;
+}
+header .post-meta {
+    margin-top: 0.25em;
+    font-size: 0.7em;
+    color: #000;
+    opacity: 1;
+}
+header .post-meta > span {
+    display: block; 
+    text-align: center;
+    width: 100%;
+}
+.entry-footer {
+    text-align: left;
+}
+
+.post-content .post-image {
+    position: relative;
+    top: -.5em;
+    float: right;
+    width: 164px;
+    margin: 0 .5em .5em;
+    padding: 0 .25em .25em;
+}
+.post-content sup { 
+    vertical-align:top; padding-left: .15em; 
+    line-height:100%; 
+}
+.post-content sup > a {
+    box-shadow: none;
+    font-size: .7em;
+    font-weight: bold;    
+}
+div.footnotes {
+    margin-top: 3em;
+}
+
+.post-content .grouped {
+    margin: 0; padding: 0; width: 100%;
+    margin-bottom: 1em;
+    
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.post-content .grouped:after {
+    clear: both;
+    content: "";
+    display: table;
+}
+.post-content .callout.right {
+    width: 50%;
+    float: right;
+    padding-left: .5em;
+
+}
+.post-content .callout.left {
+    width: 50%;
+    padding-right: .5em;
+    float: left;
+}
+.post-content .grouped .callout h2,
+.post-content .grouped .callout h3,
+.post-content .grouped .callout p {
+    font-family: "Montserrat", sans-serif;
+    font-size: .8em;
+    font-weight: 400;
+}
+.post-content .grouped .callout p strong {
+    font-weight: 700 !important;
+}
+.post-content .grouped .callout h2,
+.post-content .grouped .callout h3,
+.post-content .grouped .callout h4,
+.post-content .grouped .callout h5 {
+    font-style: italic;
+    font-weight: 200;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: .35em;
+}
+
+.post-content dl,
+.post-content ol,
+.post-content p,
+.post-content figure,
+.post-content ul,
+.post-content td,
+.first-entry .entry-content p,
+.post-entry .entry-content p {
+    font-family: "Lora", serif;
+    font-style: normal;
+    font-size: 0.9em;
+    font-size-adjust: 0.5;
+    line-height: 1.5em;
+    font-weight: 100;
+    opacity: 0.95;
+    font-smooth: always;
+    -webkit-font-smoothing: antialiased;
+}
+.post-entry .entry-content p {
+    font-size: 1.15em;
+    opacity: 0.9 !important;
+    color: var(--content);
+}
+
+body.list main.main .entry-content {
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+.post-content strong {
+    font-weight: 700 !important;
+}
+.post-content blockquote {
+    border-left-color: var(--tagline-border);
+}
+.post-content blockquote p,
+.post-entry blockquote p {
+    font-style: italic;
+    opacity: 0.65;
+}
+
+.post-content td, 
+.post-content tr {
+    text-align: left;
+    vertical-align: top;
+    font-size: .9em;
+}
+.post-content table {
+    width: 100%;
+}
+.post-content table thead tr th {
+    font-family: "Montserrat", sans-serif;
+    font-weight: 600;
+    font-size: .8em;
+}
+.post-content div.goat svg {
+    /*font-size: .3em !important;*/
+    font-family: monospace;
+}
+/* Special empty-paragraph hack for a simple mono-diagram */
+/* p:not(:empty):has(code) {
+    font-size: 1.25em;
+    text-align: center;
+} */
+
+main.main > header h1,
+main.main > article h1,
+main.main > article h2,
+main.main > article h3,
+main.main > article h4,
+main.main > article h5 {
+    font-family: "Montserrat", sans-serif;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 0.5em;
+    margin-top: 1.5em;
+    opacity: 1 !important;
+    letter-spacing: -1px;
+}
+body.list {
+    background: var(--home-bg);
+}
+body.list main.main > article h1,
+body.list main.main > article h2 {
+    margin-top: 0em;
+}
+main.main > header h1,
+main.main > article > header.post-header h1 {
+    font-size: 1.3em;
+    font-weight: 600;
+    margin-bottom: -0.2em;
+    text-align: center;
+    opacity: 0.95 !important;
+    text-align: center;
+}
+body.list main.main > article {
+    position: relative;
+}
+body.list main.main > article footer {
+    position: absolute;
+    bottom: 0.15em;
+    right: 1em;
+    font-size: 0.75em;
+}
+main.main > article h1 {
+    font-size: 1.2em;
+}
+main.main > article h2 {
+    font-size: 1em;
+}
+main.main > article h3 {
+    font-size: 0.9em;
+}
+main.main > article h4 {
+    font-size: 0.7em;
+    font-weight: 300;
+    text-transform: uppercase !important;
+}
+main.main > article h5 {
+    font-size: 0.6em;
+    font-weight: 300;
+    text-transform: uppercase !important;
+}
+ul.post-tags ul li {
+    list-style-type: none;
+    line-height: 1em;
+}
+article ul.post-tags li:before {
+    content: "" !important;
+}
+ul.post-tags li a {
+    font-size: 0.6em;
+    font-family: monospace;
+    text-transform: uppercase;
+    color: var(--secondary);
+    background-color: var(--button-bg);
+}
+ul.post-tags li a:before {
+    content: "#";
+}
+.pagination a {
+    font-family: "Alumni Sans Pinstripe", serif;
+    font-weight: 800;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    opacity: 0.9;
+    font-size: 0.9em;
+}
+.pagination a:hover {
+    opacity: 1;
+    border-bottom: 1px solid var(--tagline-border);
+    -webkit-transition: all 0.2s ease-out;
+    -moz-transition: all 0.2s ease-out;
+    -o-transition: all 0.2s ease-out;
+
+    transition: all 200ms ease-in-out;
+    border-bottom-style: solid;
+    text-decoration: none !important;
+    box-shadow: none !important;
+}
+
+/* Hide nav on main page only */
+body#collection header > nav {
+    display: none;
+}
+
+body#collection .authors,
+body#collection time,
+body#subpage .authors,
+body#subpage time {
+    font-size: 0.7em !important;
+}
+
+body#collection article,
+body#post article {
+    font-size: 1.1em;
+}
+
+body#collection h2,
+body#subpage h2 {
+    margin-top: 1em !important;
+    margin-bottom: 0 !important;
+}
+body#collection h3,
+body#subpage h3 {
+    margin-top: 1em !important;
+    margin-bottom: 0 !important;
+}
+
+/* Branded links */
+.description.p-note a,
+.description.p-note a:active,
+article p > a,
+article p > a:active,
+article p > a span,
+article p > a:active span,
+article li > a,
+article li > a:active {
+    -webkit-transition: all 200ms ease-out;
+    -moz-transition: all 200ms ease-out;
+    -o-transition: all 200ms ease-out;
+    transition: all 200ms ease-out;
+    border-bottom: 4px solid rgba(104, 159, 214, 0.35);
+    transition: border 200ms ease-in-out;
+    border-bottom-style: solid;
+    text-decoration: none !important;
+    box-shadow: none !important;
+}
+
+article p > a.hashtag {
+    font-family: Monaco, Menlo, "Lucida Console", monospace;
+    font-size: 0.9em;
+    text-align: center;
+    letter-spacing: 1px;
+    opacity: 0.7;
+    margin-right: 1em;
+}
+
+span.p-category {
+    text-decoration: none !important;
+}
+
+/* Simple dash lists */
+article ul {
+    margin: 0;
+}
+article ul {
+    list-style-type: none;
+}
+article ul > li {
+    text-indent: -5px;
+}
+article ul > li:before {
+    content: "- ";
+    text-indent: -5px;
+}
+
+body#post p {
+}
+
+.post-content p > img,
+body#post p > img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.post-content > img {
+    position: relative;
+    left: -4px;
+}
+
+
+/* Warped branding (top and bottom bars) */
+.top.warped-bar,
+.bottom.warped-bar {
+    width: 100%;
+    background-color: var(--warped-blue);
+    z-index: 999;
+}
+.top.warped-bar {
+    position: fixed;
+    height: 15px;
+    left: 0;
+    top: 0;
+}
+.bottom.warped-bar {
+    position: fixed;
+    height: 5px;
+    left: 0;
+    bottom: 0;
+}
+.warped-bar .flourish hr {
+    width: 30px;
+    height: 15px;
+    float: left;
+}
+.warped-bar.bottom .flourish hr {
+    height: 5px;
+}
+.flourish hr:nth-child(1) {
+    background-color: var(--warped-green);
+}
+.flourish hr:nth-child(2) {
+    background-color: var(--warped-yellow);
+}
+.flourish hr:nth-child(3) {
+    background-color: var(--warped-orange);
+}
+.flourish hr:nth-child(4) {
+    background-color: var(--warped-red);
+}
+.flourish.left {
+    left: 0;
+}
+.flourish.right {
+    right: 0;
+    width: auto;
+    float: right;
+}
+.flourish.right hr:nth-child(1) {
+    background-color: var(--warped-red);
+}
+.flourish.right hr:nth-child(2) {
+    background-color: var(--warped-orange);
+}
+.flourish.right hr:nth-child(3) {
+    background-color: var(--warped-yellow);
+}
+.flourish.right hr:nth-child(4) {
+    background-color: var(--warped-green);
+}
+.flourish hr {
+    border: 0;
+    display: block;
+    content: " ";
+    margin: 0;
+    padding: 0;
+    max-width: auto;
+}
+.post-content pre code { 
+    font-size: .75em;
+}
+
+.post-content code {
+    font-size: .85em;
+    background: var(--code-text);
+    color: var(--code-bg);
+}
+/* Warped grams (code-only paragraphs styled as mini diagrams) */
+.post-content .code-gram {
+    width: 90%;
+    text-align: center;
+    margin: 1.5em 0;
+    padding: 0.75em 0;
+    container-type: inline-size; 
+}
+
+.post-content .code-gram code {
+    font-size: clamp(1rem, 4cqi, 3rem);
+}
+.post-content .language-qgraph {
+    font-size: 110%;
+    opacity: .75;
+    background-color: rgb(245, 244, 237) !important;
+    color: rgb(17, 17, 17);
+    border: 1px solid rgba(31, 30, 29, 0.15);
+}
+
+@media screen and (max-width: 480px) {
+    header nav div.logo > a {
+        letter-spacing: 1px;
+    }
+    header nav div.logo div.logo-switches {
+        top: 12px;
+        right: 2px;
+    }
+    header nav div.logo p.tagline {
+        line-height: 1.5em;
+    }
+    header .post-meta {
+        position: relative;
+        right: auto;
+        left: auto;
+        top: auto;
+        font-size: 0.5em;
+    }
+    header nav div.logo p.tagline {
+        font-size: 0.75em;
+    }
+
+    .post-content > img {
+        left: 0;
+    }
+}
+
+/* Code markup */
+
+/* Background */
+.post-content .chroma,
+.post-content .highlight pre code,
+.post-content .highlight:not(table),
+.bg {
+    color: var(--code-text);
+    background: var(--code-bg) !important;
+    border-radius: 11px !important;
+}
+/* PreWrapper */
+.chroma {
+    color: var(--code-text);
+}
+/* Other */
+.chroma .x {
+}
+/* Error */
+.chroma .err {
+    color: #960050;
+    background-color: #1e0010;
+}
+/* CodeLine */
+.chroma .cl {
+}
+/* LineLink */
+.chroma .lnlinks {
+    outline: none;
+    text-decoration: none;
+    color: inherit;
+}
+/* LineTableTD */
+.chroma .lntd {
+    vertical-align: top;
+    padding: 0;
+    margin: 0;
+    border: 0;
+}
+/* LineTable */
+.chroma .lntable {
+    border-spacing: 0;
+    padding: 0;
+    margin: 0;
+    border: 0;
+}
+/* LineHighlight */
+.chroma .hl {
+    background-color: #3c3d38;
+}
+/* LineNumbersTable */
+.chroma .lnt {
+    white-space: pre;
+    -webkit-user-select: none;
+    user-select: none;
+    margin-right: 0.4em;
+    padding: 0 0.4em 0 0.4em;
+    color: #7f7f7f;
+}
+/* LineNumbers */
+.chroma .ln {
+    white-space: pre;
+    -webkit-user-select: none;
+    user-select: none;
+    margin-right: 0.4em;
+    padding: 0 0.4em 0 0.4em;
+    color: #7f7f7f;
+}
+/* Line */
+.chroma .line {
+    display: flex;
+}
+/* Keyword */
+.chroma .k {
+    color: #66d9ef;
+}
+/* KeywordConstant */
+.chroma .kc {
+    color: #66d9ef;
+}
+/* KeywordDeclaration */
+.chroma .kd {
+    color: #66d9ef;
+}
+/* KeywordNamespace */
+.chroma .kn {
+    color: #f92672;
+}
+/* KeywordPseudo */
+.chroma .kp {
+    color: #66d9ef;
+}
+/* KeywordReserved */
+.chroma .kr {
+    color: #66d9ef;
+}
+/* KeywordType */
+.chroma .kt {
+    color: #66d9ef;
+}
+/* Name */
+.chroma .n {
+}
+/* NameAttribute */
+.chroma .na {
+    color: #a6e22e;
+}
+/* NameBuiltin */
+.chroma .nb {
+}
+/* NameBuiltinPseudo */
+.chroma .bp {
+}
+/* NameClass */
+.chroma .nc {
+    color: #a6e22e;
+}
+/* NameConstant */
+.chroma .no {
+    color: #66d9ef;
+}
+/* NameDecorator */
+.chroma .nd {
+    color: #a6e22e;
+}
+/* NameEntity */
+.chroma .ni {
+}
+/* NameException */
+.chroma .ne {
+    color: #a6e22e;
+}
+/* NameFunction */
+.chroma .nf {
+    color: #a6e22e;
+}
+/* NameFunctionMagic */
+.chroma .fm {
+}
+/* NameLabel */
+.chroma .nl {
+}
+/* NameNamespace */
+.chroma .nn {
+}
+/* NameOther */
+.chroma .nx {
+    color: #a6e22e;
+}
+/* NameProperty */
+.chroma .py {
+}
+/* NameTag */
+.chroma .nt {
+    color: #f92672;
+}
+/* NameVariable */
+.chroma .nv {
+}
+/* NameVariableClass */
+.chroma .vc {
+}
+/* NameVariableGlobal */
+.chroma .vg {
+}
+/* NameVariableInstance */
+.chroma .vi {
+}
+/* NameVariableMagic */
+.chroma .vm {
+}
+/* Literal */
+.chroma .l {
+    color: #ae81ff;
+}
+/* LiteralDate */
+.chroma .ld {
+    color: #e6db74;
+}
+/* LiteralString */
+.chroma .s {
+    color: #e6db74;
+}
+/* LiteralStringAffix */
+.chroma .sa {
+    color: #e6db74;
+}
+/* LiteralStringBacktick */
+.chroma .sb {
+    color: #e6db74;
+}
+/* LiteralStringChar */
+.chroma .sc {
+    color: #e6db74;
+}
+/* LiteralStringDelimiter */
+.chroma .dl {
+    color: #e6db74;
+}
+/* LiteralStringDoc */
+.chroma .sd {
+    color: #e6db74;
+}
+/* LiteralStringDouble */
+.chroma .s2 {
+    color: #e6db74;
+}
+/* LiteralStringEscape */
+.chroma .se {
+    color: #ae81ff;
+}
+/* LiteralStringHeredoc */
+.chroma .sh {
+    color: #e6db74;
+}
+/* LiteralStringInterpol */
+.chroma .si {
+    color: #e6db74;
+}
+/* LiteralStringOther */
+.chroma .sx {
+    color: #e6db74;
+}
+/* LiteralStringRegex */
+.chroma .sr {
+    color: #e6db74;
+}
+/* LiteralStringSingle */
+.chroma .s1 {
+    color: #e6db74;
+}
+/* LiteralStringSymbol */
+.chroma .ss {
+    color: #e6db74;
+}
+/* LiteralNumber */
+.chroma .m {
+    color: #ae81ff;
+}
+/* LiteralNumberBin */
+.chroma .mb {
+    color: #ae81ff;
+}
+/* LiteralNumberFloat */
+.chroma .mf {
+    color: #ae81ff;
+}
+/* LiteralNumberHex */
+.chroma .mh {
+    color: #ae81ff;
+}
+/* LiteralNumberInteger */
+.chroma .mi {
+    color: #ae81ff;
+}
+/* LiteralNumberIntegerLong */
+.chroma .il {
+    color: #ae81ff;
+}
+/* LiteralNumberOct */
+.chroma .mo {
+    color: #ae81ff;
+}
+/* Operator */
+.chroma .o {
+    color: #f92672;
+}
+/* OperatorWord */
+.chroma .ow {
+    color: #f92672;
+}
+/* Punctuation */
+.chroma .p {
+}
+/* Comment */
+.chroma .c {
+    color: #75715e;
+}
+/* CommentHashbang */
+.chroma .ch {
+    color: #75715e;
+}
+/* CommentMultiline */
+.chroma .cm {
+    color: #75715e;
+}
+/* CommentSingle */
+.chroma .c1 {
+    color: #75715e;
+}
+/* CommentSpecial */
+.chroma .cs {
+    color: #75715e;
+}
+/* CommentPreproc */
+.chroma .cp {
+    color: #75715e;
+}
+/* CommentPreprocFile */
+.chroma .cpf {
+    color: #75715e;
+}
+/* Generic */
+.chroma .g {
+}
+/* GenericDeleted */
+.chroma .gd {
+    color: #f92672;
+}
+/* GenericEmph */
+.chroma .ge {
+    font-style: italic;
+}
+/* GenericError */
+.chroma .gr {
+}
+/* GenericHeading */
+.chroma .gh {
+}
+/* GenericInserted */
+.chroma .gi {
+    color: #a6e22e;
+}
+/* GenericOutput */
+.chroma .go {
+}
+/* GenericPrompt */
+.chroma .gp {
+}
+/* GenericStrong */
+.chroma .gs {
+    font-weight: bold;
+}
+/* GenericSubheading */
+.chroma .gu {
+    color: #75715e;
+}
+/* GenericTraceback */
+.chroma .gt {
+}
+/* GenericUnderline */
+.chroma .gl {
+}
+/* TextWhitespace */
+.chroma .w {
+}
