@@ -72,12 +72,16 @@ Phased implementation checklist for `2.p8`, based on [README.md](README.md) and 
 - [x] Lift-shaft fall redesigned from an instant fail into a real descent (new `falling` state): sideways drift can land safely on a lower floor or catch the lift mid-transit; only reaching the bottom of the room still costs HP — resolves BUGS.md #2.1. DESIGN.md updated to match (Palette, State machine, and Core system design sections all brought current, rather than left to drift as historical record)
 - [x] Corridor floor/ceiling lines recoloured (navy-on-black was imperceptible) to light grey, drawn at both top and bottom of each floor's band; shaft column now also gets a yellow light bar marking the exitable side — resolves BUGS.md #2.3
 - [x] Bottom floor made solid ground (continuous ground line, fall trigger skipped at `rfl==2`); fall damage now scales with floors fallen (2 HP from the top, 1 from the middle) and lands the player in place rather than resetting to the entry door — resolves BUGS.md #2.8
-- [x] Robot hit box inset 1px per side to match its drawn silhouette more closely — resolves BUGS.md #2.9
+- [x] Robot hit box inset 1px per side to match its drawn silhouette more closely — resolves BUGS.md #2.9. Insufficient on its own (see #2.21 below)
 - [x] Search speed doubled (`prog+=2`/frame, same 300-unit threshold) — resolves BUGS.md #2.10
 - [x] "Found: X" popup (60 frames) with the letter tile sprite on completing a letter search — resolves BUGS.md #2.11
-- [x] SFX: footstep (slot 2, synced to the run cycle via `step_sfx()`), jump "sproing" (slot 3), landing thump (slot 4), search progress tick (slot 5, once per 30-unit step) — resolves BUGS.md #2.12 and #2.15. Still missing: robot look-beep, search completion, item pickup (health vs. letter), robot hit, win, loss
+- [x] SFX: footstep (slot 2, synced to the run cycle via `step_sfx()`), jump "sproing" (slot 3), landing thump (slot 4), search progress tick (slot 5, once per 30-unit step), search completion major-chord arpeggio (slot 6), robot look/turn "bleep-bloop" (slot 7), robot move buzz (slot 8) — resolves BUGS.md #2.12, #2.15, #2.17, #2.18. Still missing: item pickup (health vs. letter), robot hit, win, loss
 - [x] Robot clamp bounds tightened (no more hanging off the right edge or into the lift gap) and speed halved — resolves BUGS.md #2.13
 - [x] Lift riding reworked: free movement regardless of alignment, jump on/off the lift like any floor, catch it again mid-arc by height proximity rather than only at a floor stop — resolves BUGS.md #2.14. Regression fix: the mid-flight catch check needed a `jt>=4` grace window, since a jump launched from the lift itself started within the catch tolerance and immediately re-boarded it — resolves BUGS.md #2.16
+- [x] Chase robots now pause on an actual direction change (matching patrol's existing pause-at-turn), instead of reversing instantly the same frame — resolves BUGS.md #2.19
+- [x] HUD line 1 text moved down 1px (was running into the panel's top border) — resolves BUGS.md #2.20
+- [x] Robot hit box tightened further to 2px inset on both the robot's and the player's side (1px robot-only wasn't enough) — resolves BUGS.md #2.21
+- [x] Third robot skin (purple body, white lights, sprites 39-41) added — the previous two, while nominally distinct, were both red-based and read as one colour — resolves BUGS.md #2.22
 - [ ] Ambient music loop for the elevator shaft, authored in Pico-8's built-in tracker (`__music__` pattern referencing 2-3 pad-note sfx slots), silent elsewhere
 - [ ] Verify: play a full round with sound on; confirm every listed SFX fires at its correct trigger
 
