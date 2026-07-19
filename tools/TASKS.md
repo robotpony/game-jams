@@ -4,13 +4,14 @@ Tooling improvements identified after the first Pico-8 game session.
 
 ---
 
-## 1. Build a Pico-8 game spec template
+## 1. Build a Pico-8 game spec template — done, see [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md)
 
 A fill-in-the-blank template that forces resolution of every ambiguous dimension before any code is written. Prevents two-round Q&A and missing-spec problems.
 
-- [ ] Create `pico8-spec-template.md`
-- [ ] Required fields: playfield dimensions, HUD layout, game states + transitions, tile type IDs, sprite slot assignments, SFX slot assignments, control mapping, palette choices
-- [ ] Optional fields: score system, timer behaviour, level seeding
+- [x] Create the spec format doc — landed at repo root as `SPEC-FORMAT.md` rather than `pico8-spec-template.md`, since it governs the whole README/DESIGN/PLAN/CLAUDE document set, not just README
+- [x] Required fields: game states + transitions (Scenes in README, State machine in DESIGN), tile type IDs and palette choices (Tile/sprite visuals, DESIGN's Palette section)
+- [x] Optional fields: score system, timer behaviour, level seeding (Player, Progression sections)
+- [ ] Playfield dimensions, sprite slot assignments, SFX slot assignments, and control mapping aren't yet broken out as their own required DESIGN.md fields; fold in if they turn out to need more structure than the current Screen layout / Core system design sections give them
 
 ---
 

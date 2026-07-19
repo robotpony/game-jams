@@ -101,5 +101,6 @@ python sfx/events.py --event trap
 
 ## Related projects
 
-- `../1/` — the first Pico-8 game built with these tools (a maze game); its `1.p8` is a reference cartridge and `1/claude.md` documents its architecture
+- `../SPEC-FORMAT.md` — the document set and section structure every game folder follows (README, DESIGN, PLAN, CLAUDE); DESIGN.md's Palette section is what this project's `sprites/` and `shared/` scripts should ultimately help fill in
+- `../1/` — the first Pico-8 game built with these tools (a maze game); its `1.p8` is a reference cartridge and `1/CLAUDE.md` documents its architecture
 - `../lib/` — shared Lua snippets pasted into cartridges' `__lua__` section; separate from this project's host-side generation scripts

@@ -2,6 +2,8 @@
 
 Shared Lua code for Pico-8 games. These are reusable functions and abstractions that get copy-pasted (or included via a build step) into `.p8` cartridge files.
 
+Each game's own Core system design (in its DESIGN.md, per [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md)) should check here before describing new gameplay utility code from scratch.
+
 ## Purpose
 
 Common patterns show up across every Pico-8 game: tweening, screen flash, state machines, input handling, collision, HUD drawing. This project captures them as well-tested, token-efficient Lua snippets so each game doesn't reinvent them under budget pressure.
@@ -21,8 +23,9 @@ Everything here runs under Pico-8's Lua variant. That means:
 ```
 lib/
   input.lua       button helpers, input buffering, held-button detection
-  screen.lua      flash, fade, palette cycling, screen shake
+  screen.lua      flash, fade, palette cycling, screen shake, blink() prompt timer
   state.lua       simple finite state machine (init/update/draw dispatch)
+  title.lua       shared jam title card (colour swatches, jam name, per-game name, blink prompt)
   tween.lua       linear and eased interpolation
   collision.lua   AABB helpers for pixel and tile collision
   hud.lua         score display, timer bar, message flash
@@ -30,6 +33,8 @@ lib/
   math.lua        lerp, clamp, sign, dist, angle helpers
   rng.lua         seeded RNG wrappers, weighted choice
 ```
+
+`screen.lua` and `title.lua` are built and in use (games 1 and 3, see [`PLAN.md`](PLAN.md)). The rest of this list is still a backlog; the files don't exist yet.
 
 ## File format
 
@@ -58,7 +63,9 @@ For games with tight token budgets, inline only what you need — don't paste th
 - One function per logical operation; no Swiss Army functions
 - Each function must have a usage comment showing a realistic call site
 
-## Example: screen flash
+## Example: screen flash (planned, not yet in `screen.lua`)
+
+Games 1 and 3 still inline `flash_t`/`flash_c` by hand rather than calling shared functions; extracting them into `screen.lua` is a pending [`PLAN.md`](PLAN.md) item. The target shape:
 
 ```lua
 -- screen.lua
@@ -86,6 +93,21 @@ function draw_flash()
     return true
   end
   return false
+end
+```
+
+## Example: blink prompt (built, in `screen.lua`)
+
+```lua
+-- lib/screen.lua
+-- blinking prompt-text helper
+-- tokens: ~15
+-- depends: none
+
+-- call: if blink(2) then print("press x to start",...) end
+-- hz=2 gives a 0.5s on/off cycle at any framerate; stateless, no update() call needed
+function blink(hz)
+  return (time()*hz)%2<1
 end
 ```
 
