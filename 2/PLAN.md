@@ -82,6 +82,14 @@ Phased implementation checklist for `2.p8`, based on [README.md](README.md) and 
 - [x] HUD line 1 text moved down 1px (was running into the panel's top border) — resolves BUGS.md #2.20
 - [x] Robot hit box tightened further to 2px inset on both the robot's and the player's side (1px robot-only wasn't enough) — resolves BUGS.md #2.21
 - [x] Third robot skin (purple body, white lights, sprites 39-41) added — the previous two, while nominally distinct, were both red-based and read as one colour — resolves BUGS.md #2.22
+- [x] Clock item added (sprite 42, white clock-face glyph): searching one adds 60s to the timer instead of restoring HP; ~1 in 4 non-letter, non-terminal objects roll as a clock — resolves BUGS.md #2.23
+- [x] Terminal item added: a 5th object kind (sprite 43, single fixed look, no colour variants), always item 4 ("help"), excluded from letter placement. Searching one opens a full-screen help overlay (controls, letter/win goal, object legend) that freezes the game until dismissed; unlike every other object it's never marked found, so it can be searched again — resolves BUGS.md #2.24
+- [x] Object content reveal reversed back to hidden-until-searched: `draw_obj()` no longer shows a permanent content hint (superseding #2.7's "always visible" decision), the icon now only appears in the search progress bubble once actively searching — resolves BUGS.md #2.25
+- [x] Terminal tuning: opens after 5 search steps instead of 10 (superseded, see below), releasing early cancels rather than pauses (unique to terminals, still true), and the help screen now has a bezel border + neon-green text to read as an actual terminal display — resolves BUGS.md #2.26
+- [x] Terminal placement restricted to the bottom floor's door-adjacent side (`gen_room()` now takes `entry_side`) — resolves BUGS.md #2.27
+- [x] Terminal step count reverted to the standard 10 (300 progress), but each step doubled to 2x speed (`prog+=4` vs. the normal `+=2`) — supersedes the 5-step version from #2.26, resolves BUGS.md #2.28. Tick-sound check changed from an exact `%30==0` match to a step-boundary crossing check, since a 4-wide stride doesn't evenly divide 30
+- [x] Help screen ignores input for its first 3 seconds (`help_t=90`) before it can be dismissed — resolves BUGS.md #2.29
+- [x] Robot look/turn sound (slot 7) capped at once per 3s per robot (`r.st` cooldown via `look_sfx()`) — fixes it getting "stuck" repeating when a chasing robot jitters right at the player's position — resolves BUGS.md #2.30
 - [ ] Ambient music loop for the elevator shaft, authored in Pico-8's built-in tracker (`__music__` pattern referencing 2-3 pad-note sfx slots), silent elsewhere
 - [ ] Verify: play a full round with sound on; confirm every listed SFX fires at its correct trigger
 

@@ -119,34 +119,48 @@ end
 
 -- one room's objects & robots: 3 floors x 2 sides, up to 2 objects and 1 robot per side
 -- letter (or nil) marks this room as one of the first 10, holding one puzzle letter
-function gen_room(letter)
+-- entry_side (0/1) is which corridor this room is reached from -- terminals
+-- only roll on the bottom floor, on the object-side adjacent to that door
+-- (entry_side==0 spawns the player at px=116, next to object side 1; ==1
+-- spawns at px=4, next to side 0 -- so door_side is the opposite value)
+function gen_room(letter,entry_side)
   local room={objs={},robots={}}
   local pat=flr(rnd(4))+1
+  local door_side=1-entry_side
   for fl=0,2 do
     for side=0,1 do
       local sx=side==0 and 0 or 68
       local n=obj_count(pat)
+      local near_door=fl==2 and side==door_side
       for k=1,n do
         local gap=60/(n+1)
         local ox=sx+gap*k-4
         local oy=floor_ground(fl)-7
-        local kind=flr(rnd(4))+1
+        -- kind 5 (terminal) is always item 4 (help), never a letter/health/
+        -- clock container; other kinds roll clock (25%) or health (75%)
+        local kind=near_door and flr(rnd(5))+1 or flr(rnd(4))+1
         local variant=flr(rnd(3))+1
-        add(room.objs,{fl=fl,side=side,x=ox,y=oy,kind=kind,variant=variant,item=1,found=false,prog=0})
+        local item=kind==5 and 4 or (rnd(100)<25 and 3 or 1)
+        add(room.objs,{fl=fl,side=side,x=ox,y=oy,kind=kind,variant=variant,item=item,found=false,prog=0})
       end
       if rnd(100)<robp[pat] then
         local rb={fl=fl,side=side,x=sx+10+flr(rnd(40)),y=floor_ground(fl)-7,
           pat=flr(rnd(3))+1,dir=flr(rnd(2))*2-1,t=30+flr(rnd(60)),flee=0,jumped=false,
-          spd=base_spd*(0.7+rnd(0.6)),skin=flr(rnd(3))}
+          spd=base_spd*(0.7+rnd(0.6)),skin=flr(rnd(3)),st=0}
         add(room.robots,rb)
       end
     end
   end
   if letter then
-    if #room.objs==0 then
-      add(room.objs,{fl=0,side=0,x=26,y=floor_ground(0)-7,kind=1,variant=1,item=1,found=false,prog=0})
+    local elig={}
+    for i=1,#room.objs do
+      if room.objs[i].kind~=5 then add(elig,i) end
     end
-    local idx=flr(rnd(#room.objs))+1
+    if #elig==0 then
+      add(room.objs,{fl=0,side=0,x=26,y=floor_ground(0)-7,kind=1,variant=1,item=1,found=false,prog=0})
+      add(elig,#room.objs)
+    end
+    local idx=elig[flr(rnd(#elig))+1]
     room.objs[idx].item=2
     room.objs[idx].letter=letter
   end
@@ -198,12 +212,12 @@ function gen_floors()
     local r=floors[i]
     if r==1 or r==3 then
       idx+=1
-      rooms[idx]=gen_room(idx<=wlen and sub(word,idx,idx) or nil)
+      rooms[idx]=gen_room(idx<=wlen and sub(word,idx,idx) or nil,0)
       roomL[i]=idx
     end
     if r==2 or r==3 then
       idx+=1
-      rooms[idx]=gen_room(idx<=wlen and sub(word,idx,idx) or nil)
+      rooms[idx]=gen_room(idx<=wlen and sub(word,idx,idx) or nil,1)
       roomR[i]=idx
     end
   end
@@ -318,24 +332,36 @@ function rmul() return 1+min(nvisited,10)/10 end
 -- robot in the room -- a jam-scope simplification, not true per-robot
 -- polyphony, so only the most recently triggered robot's sound is heard
 -- if two happen to overlap
+-- plays the look/turn sfx, but at most once every 90 frames (~3s) per robot
+-- (r.st, ticked down below) -- bug fix: a chasing robot converging on the
+-- player's exact x can flip which side it's on every single frame (r.x
+-- overshooting px by a fraction of a pixel each step), re-triggering the
+-- direction-change branch and its sfx(7,0) call every frame too, "stuck"
+-- repeating for as long as that jitter lasted. This cooldown caps how often
+-- the sound can actually fire, regardless of how often the trigger does
+function look_sfx(r)
+  if r.st<=0 then sfx(7,0) r.st=90 end
+end
+
 function update_robot(r)
   -- bug fix: hi used to be 56 (side 0) / 124 (side 1) -- with an 8px-wide
   -- sprite that let a robot's right edge reach into the lift gap (58-69) or
   -- past the screen's right edge (127); tightened so both edges stay clear
   local lo,hi=r.side==0 and 4 or 72,r.side==0 and 50 or 119
+  if r.st>0 then r.st-=1 end
   if r.pat==1 then
     r.t-=1
-    if r.t<=0 then r.dir=-r.dir r.t=30+flr(rnd(60)) sfx(7,0) end
+    if r.t<=0 then r.dir=-r.dir r.t=30+flr(rnd(60)) look_sfx(r) end
   elseif r.pat==2 then
     if r.t>0 then r.t-=1
     else
       r.x+=r.dir*r.spd*rmul()
       if flr(r.x)%8<1 then sfx(8,0) end
-      if r.x<=lo or r.x>=hi then r.dir=-r.dir r.t=15+flr(rnd(30)) sfx(7,0) end
+      if r.x<=lo or r.x>=hi then r.dir=-r.dir r.t=15+flr(rnd(30)) look_sfx(r) end
     end
   else
     if r.fl==rfl and abs(px-r.x)<=6 then
-      if jumping and not r.jumped then r.t=30 r.flee=20 r.jumped=true sfx(7,0) end
+      if jumping and not r.jumped then r.t=30 r.flee=20 r.jumped=true look_sfx(r) end
     else
       r.jumped=false
     end
@@ -354,7 +380,7 @@ function update_robot(r)
       if newdir~=r.dir then
         r.dir=newdir
         r.t=10
-        sfx(7,0)
+        look_sfx(r)
       else
         r.x=mid(lo,r.x+r.dir*r.spd*rmul(),hi)
         if flr(r.x)%8<1 then sfx(8,0) end
@@ -503,20 +529,39 @@ function update_room()
 
   if btn(2) and fo then
     sobj=fo
-    fo.prog+=2
-    if fo.prog%30==0 then sfx(5,3) end
+    -- terminal still counts the full 10 steps, but each one is 2x as fast
+    -- (4/frame instead of 2). 4 doesn't evenly divide the 30-unit step size
+    -- (unlike 2), so the tick check compares before/after step number rather
+    -- than relying on an exact %30==0 hit, which a 4-wide stride can skip
+    local prevprog=fo.prog
+    fo.prog+=(fo.item==4 and 4 or 2)
+    if flr(fo.prog/30)>flr(prevprog/30) then sfx(5,3) end
     if fo.prog>=300 then
       sfx(6,3)
       if fo.item==2 then
         add(inv,fo.letter)
         found_letter=fo.letter
         found_t=60
-      else hp=min(5,hp+2) end
-      fo.found=true
+        fo.found=true
+      elseif fo.item==3 then
+        timer+=1800
+        fo.found=true
+      elseif fo.item==4 then
+        help_on=true
+        help_t=90
+        fo.prog=0
+      else
+        hp=min(5,hp+2)
+        fo.found=true
+      end
       sobj=nil
     end
     return
   end
+  -- releasing up (or walking away) before a terminal search completes
+  -- cancels it rather than pausing it, unlike every other object -- a
+  -- half-charged terminal doesn't "remember" progress between attempts
+  if sobj and sobj.item==4 then sobj.prog=0 end
   sobj=nil
 
   if btnp(2) then
@@ -605,11 +650,19 @@ function _init()
   trans_t=0
   flash_t=0
   found_t=0
+  help_on=false
+  help_t=0
 end
 
 function _update()
   if flash_t>0 then flash_t-=1 end
   if found_t>0 then found_t-=1 end
+
+  if help_on then
+    if help_t>0 then help_t-=1
+    elseif any_btnp() then help_on=false end
+    return
+  end
 
   if trans_t>0 then
     trans_t-=1
@@ -745,17 +798,18 @@ function draw_overlay()
   if flash_t>0 then rectfill(0,0,127,127,7) end
 end
 
--- one room's object: kind (1-4: can/desk/vending/shelf) x variant (1-3:
--- green/brown/grey) picks a sprite from the 22-33 block; a hint icon for its
--- contents is always shown on top (letter tile+glyph, or a health cross),
--- so searching is a timed action on a known target, not a discovery mechanic
+-- one room's object: kind 1-4 (can/desk/vending/shelf) x variant 1-3
+-- (green/brown/grey) picks a sprite from the 22-33 block; kind 5 (terminal)
+-- is always sprite 43, no variants. Contents are no longer hinted here --
+-- design reversal, post-Phase 6: they used to always show (BUGS.md #2.7),
+-- but now stay hidden until the player actually starts searching, so
+-- checking every object is the only way to know what it holds (see the
+-- search progress bubble in draw_room(), which reveals the icon instead)
 function draw_obj(o)
-  spr(22+(o.kind-1)*3+(o.variant-1),o.x,o.y)
-  if o.item==2 then
-    spr(35,o.x,o.y)
-    print(o.letter,o.x+2,o.y+1,0)
+  if o.kind==5 then
+    spr(43,o.x,o.y)
   else
-    spr(34,o.x,o.y)
+    spr(22+(o.kind-1)*3+(o.variant-1),o.x,o.y)
   end
 end
 
@@ -796,9 +850,19 @@ function draw_room()
 
   if sobj then
     local step=flr(sobj.prog/30)
-    rectfill(px-2,py-14,px+20,py-2,7)
-    rect(px-2,py-14,px+20,py-2,0)
+    rectfill(px-2,py-14,px+28,py-2,7)
+    rect(px-2,py-14,px+28,py-2,0)
     print(step.."/10",px,py-12,0)
+    if sobj.item==2 then
+      spr(35,px+20,py-13)
+      print(sobj.letter,px+22,py-12,0)
+    elseif sobj.item==3 then
+      spr(42,px+20,py-13)
+    elseif sobj.item==4 then
+      spr(43,px+20,py-13)
+    else
+      spr(34,px+20,py-13)
+    end
   end
 
   if found_t>0 then
@@ -847,7 +911,28 @@ function draw_gameover()
   end
 end
 
+-- terminal help screen: keys, letter/win purpose, and an object legend --
+-- full-screen, freezes gameplay while shown (see help_on in _update())
+function draw_help()
+  cls(0)
+  rect(2,2,125,125,6)
+  print("help",6,8,11)
+  print("arrows move, up search/jump",6,20,11)
+  print("z place, x submit (ctrl rm)",6,28,11)
+  print("find 10 letters, arrange",6,44,11)
+  print("them at the control room",6,52,11)
+  print("to win",6,60,11)
+  print("search objects for health,",6,76,11)
+  print("a letter, +60s time, or",6,84,11)
+  print("this help (terminal)",6,92,11)
+  if help_t<=0 then
+    print("press any button to close",6,112,11)
+  end
+end
+
 function _draw()
+  if help_on then draw_help() return end
+
   if gs==0 then draw_title_card("#2 MISSION") draw_overlay() return end
 
   if gs==5 then
@@ -921,13 +1006,13 @@ __gfx__
 0077777000077000000770000d0000d00d0000d00d0000d000333300004444000055550003000030040000400500005003030330040404400505055003000030
 0700007000700700007007000d0000d00d0000d00d0000d000333300004444000055550003000030040000400500005003333330044444400555555003333330
 00000000007007000070070000000000000000000000000000333300004444000055550000000000000000000000000003333330044444400555555000000000
-0444444005555550000bb0000aaaaa00008888000088880000888800002222000022220000222200000000000000000000000000000000000000000000000000
-0400004005000050000bb000aaaaaaa0088888800888888008888880022222200222222002222220000000000000000000000000000000000000000000000000
-0400004005000050000bb000aaaaaaa00888888008aa88800888aa80022222200277222002227720000000000000000000000000000000000000000000000000
-04444440055555500bbbbbb0aaaaaaa0088888800888888008888880022222200222222002222220000000000000000000000000000000000000000000000000
-04000040050000500bbbbbb0aaaaaaa0080000800800008008000080020000200200002002000020000000000000000000000000000000000000000000000000
-0400004005000050000bb000aaaaaaa0080000800800008008000080020000200200002002000020000000000000000000000000000000000000000000000000
-0444444005555550000bb000aaaaaaa0080000800800008008000080020000200200002002000020000000000000000000000000000000000000000000000000
+0444444005555550000bb0000aaaaa00008888000088880000888800002222000022220000222200007770000666660000000000000000000000000000000000
+0400004005000050000bb000aaaaaaa0088888800888888008888880022222200222222002222220070000700600006000000000000000000000000000000000
+0400004005000050000bb000aaaaaaa00888888008aa88800888aa80022222200277222002227720700700700600006000000000000000000000000000000000
+04444440055555500bbbbbb0aaaaaaa0088888800888888008888880022222200222222002222220700777700666660000000000000000000000000000000000
+04000040050000500bbbbbb0aaaaaaa0080000800800008008000080020000200200002002000020700000700006600000000000000000000000000000000000
+0400004005000050000bb000aaaaaaa0080000800800008008000080020000200200002002000020070000700066600000000000000000000000000000000000
+0444444005555550000bb000aaaaaaa0080000800800008008000080020000200200002002000020007770000666666000000000000000000000000000000000
 0000000000000000000bb0000aaaaa00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __label__
 000000000000000000000000000000000000000000000000000011111111111111111111aa666666666666666666666666666666666666666666666666666666
