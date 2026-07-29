@@ -1,5 +1,7 @@
 # Warped 2026 summer game jam
 
+A summer game jam.
+
 ## Rules
 
 1. 4 weeks of game jams
