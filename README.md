@@ -1,6 +1,6 @@
 # Warped 2026 summer game jam
 
-A summer game jam.
+A summer game jam: small games, pico-8, picotron, and pygame. I'm aiming for games I played and built in 1980-1985.
 
 ## Rules
 
