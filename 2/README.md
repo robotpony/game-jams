@@ -1,5 +1,9 @@
 # #2 Somewhat possible mission
 
+This is a spiritual demake of Impossible Mission, but in a tiny format. 
+
+## Details
+
 This is an action/platform/puzzle game built using Claude and Pico-8. Follows the format in [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
 The game looks like an Atari 2600 game. Colours, sprites, and fonts should approximate the Atari 2600 aesthetic using Pico-8's palette. It's a vastly simplified remake of Impossible Mission (Epyx, 1984).

@@ -1,5 +1,9 @@
 # 3 FALLING
 
+A catch-the-block game that includes combos and requires tradeoffs when catching blocks.
+
+## Detail
+
 This is a action/puzzle game built using Claude and Pico-8. Follows the format in [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
 The game looks like an Atari 2600 game. Colours, sprites, and fonts should approximate the Atari 2600 aesthetic using Pico-8's palette.

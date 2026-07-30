@@ -1,7 +1,6 @@
 # #1 Maze Runner
 
-A simple maze game. Watch out for the traps and monsters!
-
+A simple maze game. Watch out for the traps and monsters! Based on a game I wrote in 1981.
 
 ## Game overview
 

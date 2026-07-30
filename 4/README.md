@@ -1,5 +1,9 @@
 # Gyri #4
 
+In the spirit of Gyrus and Galaga, Gyri is a small space shooter.
+
+## Details
+
 This is an arcade shooter built using Claude and Pico-8. Follows the format in [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
 The game looks like an Atari 2600 game. Colours, sprites, and fonts approximate the Atari 2600 aesthetic using Pico-8's palette. It's a Space Invaders/Galaga-style shooter with the player's straight firing line replaced by a curved one.

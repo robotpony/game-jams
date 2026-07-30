@@ -6,7 +6,7 @@ A summer game jam: small games, pico-8, picotron, and pygame. I'm aiming for gam
 
 1. 4 weeks of game jams
 2. Minimum 2 games per week
-3. Platforms: pico-8 (2 weeks), picotron (1 week), pygame (1 week)
+3. Platforms: pico-8, picotron, pygame (author's choice)
 4. Post your updates online weekly, including game specs, and prompts if used
 
 Each entry's spec follows the format in [SPEC-FORMAT.md](SPEC-FORMAT.md).
@@ -17,4 +17,5 @@ Each entry's spec follows the format in [SPEC-FORMAT.md](SPEC-FORMAT.md).
 2. Called Impossible #2, a Mission Impossible style 2600 game.
 3. Fruit drop game. An action/puzzler with combos and a fast pace.
 4. Gyri #4, a Space Invaders/Galaga-style shooter where ship and enemies move along concentric arcs instead of straight lines.
+5. 5 To The Top, a wild-west-themed vertical platform puzzler, a side-view re-imagining of early-80s climbing games.
 
