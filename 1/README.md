@@ -31,8 +31,9 @@ A maze game with a 60-second countdown timer per level. The player explores a si
 - White humanoid drawn with primitives: 2×2 head, 2×3 body, single arm pixel indicating facing direction, two leg pixels.
 - Faces the direction of last movement (4 orientations: up, down, left, right).
 - Moves in 4 directions. Cannot move through walls.
-- No lives or health. Score is the only resource.
+- No lives or health. Score is the primary resource; ammo is a secondary resource for fighting monsters (see Monsters below).
 - Starting score: 0. Score carries over between levels.
+- Starting ammo: 10. Ammo carries over between levels.
 
 ## Items
 
@@ -42,8 +43,24 @@ A maze game with a 60-second countdown timer per level. The player explores a si
 | Treasure | +2 points; timer resets to 60s | Green screen flash |
 | Teleport | Jump to `current_seed + rnd(1–9)`; player appears at the first teleport tile in the destination level | (none specified) |
 | Exit | Advance to `current_seed + 1`; timer resets to 60s; player appears at start tile | (none specified) |
+| Ammo | +2 shots | Purple screen flash |
 
 Items are consumed on contact and become floor tiles.
+
+## Monsters
+
+- 1-3 per level, placed on dead-end cells, picked independently of item placement so monster count doesn't compete with (or get starved by) how many items rolled that level. A monster can occasionally share a dead-end cell with an item.
+- Patrol the corridor leading away from their spawn cell, up to 8 cells, turning back at a junction, another dead end, or the 8-cell cap, whichever comes first.
+- Move one cell at a time, pausing a random 8-17 frames between steps, so the patrol isn't a fixed, learnable cycle.
+- Non-blocking: the player walks through a monster's tile freely. Since the maze is a perfect maze (recursive backtracking produces exactly one path between any two cells), a solid obstacle could permanently block the only route; a non-blocking monster can't.
+- Contact with a live monster resets the player to the start tile. Score and timer are unaffected.
+
+### Shooting
+
+- The player carries ammo (starts each game with 10, +1 per monster killed, +2 per ammo pickup) and fires in their facing direction with the O button.
+- A shot travels until it hits a wall (disappears) or a monster (monster is defeated, shot disappears).
+- A defeated monster respawns at a different dead-end cell 3 seconds later.
+- Firing has a short cooldown (~0.5s) and costs 1 ammo; nothing happens if ammo is 0.
 
 ## Timer
 
@@ -64,7 +81,7 @@ Items are consumed on contact and become floor tiles.
 
 ## Sound
 
-Simple beeps approximating Atari 2600 audio. Events that need sound: trap hit, treasure collected, teleport activated, exit reached. Movement sound is optional.
+Simple beeps approximating Atari 2600 audio. Events that need sound: trap hit, treasure collected, teleport activated, exit reached, shot fired. Movement sound is optional. Monster contact reuses the trap hit cue; ammo pickup and defeating a monster reuse the treasure cue.
 
 ## Tile / sprite visuals
 
@@ -79,5 +96,8 @@ All tiles are 8×8 pixels, drawn with primitives. Atari 2600-approximated colour
 | Trap | Red (8) | X mark |
 | Treasure | Yellow (10) | Diamond outline |
 | Teleport | Cyan (12) | Two concentric circles |
+| Ammo | Purple (2) | Vertical bar with two side ticks, bullet-like |
+| Monster | Dark red (13) | Filled circle blob with two white eye pixels |
+| Shot | White (7) | Small filled dot, travels from the player outward |
 
 Start and exit are visual inverses: start is a box you leave (arrow out), exit is a box you enter (arrow in).

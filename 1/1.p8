@@ -1,7 +1,7 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
--- 1: maze game -- phase 4: visuals + sound
+-- 1: maze game -- phase 5: monsters
 
 MW=16 MH=15 TS=8
 
@@ -18,6 +18,10 @@ flash_c=0
 next_seed=0
 next_tp=false
 trans_t=0
+mons={}
+shot=nil
+shot_cd=0
+ammo=0
 
 -- lib/screen.lua
 function blink(hz)
@@ -91,6 +95,46 @@ function shuf(t)
   end
 end
 
+function opens(x,y)
+  local d={}
+  if mg(x,y-1)~=1 then add(d,{0,-1}) end
+  if mg(x+1,y)~=1 then add(d,{1,0}) end
+  if mg(x,y+1)~=1 then add(d,{0,1}) end
+  if mg(x-1,y)~=1 then add(d,{-1,0}) end
+  return d
+end
+
+-- walks from a dead-end cell along the unambiguous corridor, up to 8 cells
+function build_path(x,y)
+  local d=opens(x,y)
+  local dx,dy=d[1][1],d[1][2]
+  local p={{x,y}}
+  local cx,cy=x,y
+  for i=1,8 do
+    local nx,ny=cx+dx,cy+dy
+    add(p,{nx,ny})
+    local nd=opens(nx,ny)
+    cx,cy=nx,ny
+    if #nd~=2 then break end
+    for j=1,2 do
+      if not(nd[j][1]==-dx and nd[j][2]==-dy) then dx,dy=nd[j][1],nd[j][2] end
+    end
+  end
+  return p
+end
+
+function respawn_mon(m)
+  local e=dead_ends()
+  shuf(e)
+  local c=e[1] or {1,1}
+  m.path=build_path(c[1],c[2])
+  m.idx=1
+  m.dir=1
+  m.x,m.y=c[1],c[2]
+  m.t=8+flr(rnd(10))
+  m.dead=false
+end
+
 function find_first(ttype)
   for y=0,MH-1 do
     for x=0,MW-1 do
@@ -113,9 +157,20 @@ function gen_level(seed)
   for i=1,flr(rnd(3)) do add(types,4) end
   for i=1,flr(rnd(3)) do add(types,5) end
   for i=1,flr(rnd(3)) do add(types,6) end
+  for i=1,flr(rnd(3)) do add(types,7) end
   shuf(types)
   for i=1,min(#e,#types) do
     ms(e[i][1],e[i][2],types[i])
+  end
+  shot=nil
+  mons={}
+  local em={}
+  for i=1,#e do add(em,e[i]) end
+  shuf(em)
+  local nmon=min(1+flr(rnd(3)),#em)
+  for i=1,nmon do
+    local c=em[i]
+    add(mons,{path=build_path(c[1],c[2]),idx=1,dir=1,x=c[1],y=c[2],t=8+flr(rnd(10)),dead=false,rt=0})
   end
 end
 
@@ -123,6 +178,7 @@ function new_game()
   lseed=flr(rnd(32767))
   lnum=0
   score=0
+  ammo=10
   gs=0
   flash_t=0
   gen_level(lseed)
@@ -155,6 +211,74 @@ function handle_tile()
     next_tp=true
     lnum+=off
     gs=3 trans_t=18
+  elseif t==7 then
+    ms(px,py,0)
+    ammo+=2
+    flash_t=8 flash_c=2
+    sfx(1)
+  end
+end
+
+function upd_mons()
+  for m in all(mons) do
+    if m.dead then
+      m.rt-=1
+      if m.rt<=0 then respawn_mon(m) end
+    else
+      m.t-=1
+      if m.t<=0 then
+        local ni=m.idx+m.dir
+        if ni<1 or ni>#m.path then
+          m.dir=-m.dir
+          ni=m.idx+m.dir
+        end
+        m.idx=ni
+        m.x,m.y=m.path[ni][1],m.path[ni][2]
+        m.t=8+flr(rnd(10))
+      end
+    end
+  end
+end
+
+function check_hit()
+  for m in all(mons) do
+    if not m.dead and m.x==px and m.y==py then
+      px,py=1,1
+      sfx(0)
+    end
+  end
+end
+
+function upd_shot()
+  if shot_cd>0 then shot_cd-=1 end
+  if btnp(5) and shot==nil and shot_cd<=0 and ammo>0 then
+    local ddx,ddy=0,0
+    if pdir==0 then ddx=1
+    elseif pdir==1 then ddy=1
+    elseif pdir==2 then ddx=-1
+    else ddy=-1 end
+    shot={x=px*TS+4,y=py*TS+4,dx=ddx,dy=ddy}
+    ammo-=1
+    shot_cd=15
+    sfx(4)
+  end
+  if shot then
+    shot.x+=shot.dx*4
+    shot.y+=shot.dy*4
+    local cx,cy=flr(shot.x/TS),flr(shot.y/TS)
+    if mg(cx,cy)==1 then
+      shot=nil
+    else
+      for m in all(mons) do
+        if not m.dead and m.x==cx and m.y==cy then
+          m.dead=true
+          m.rt=90
+          ammo+=1
+          shot=nil
+          sfx(1)
+        end
+      end
+    end
   end
 end
 
@@ -197,6 +321,9 @@ function _update()
     end
   end
   if gs==0 then
+    upd_mons()
+    check_hit()
+    upd_shot()
     timer=max(0,timer-1/30)
     if timer<=0 then gs=1 end
   end
@@ -247,6 +374,32 @@ function dtile(x,y)
     local c=12
     circ(bx+3,by+3,3,c)
     circ(bx+3,by+3,1,c)
+  elseif t==7 then
+    -- ammo: purple bullet
+    local c=2
+    line(bx+3,by+1,bx+3,by+6,c)
+    line(bx+4,by+1,bx+4,by+6,c)
+    pset(bx+2,by+2,c)
+    pset(bx+5,by+2,c)
+  end
+end
+
+-- patrolling monster: dark red blob with white eyes
+function dmons()
+  for m in all(mons) do
+    if not m.dead then
+      local bx,by=m.x*TS,m.y*TS
+      circfill(bx+3,by+4,3,13)
+      pset(bx+2,by+3,7)
+      pset(bx+5,by+3,7)
+    end
+  end
+end
+
+-- player's shot, pixel position
+function dshot()
+  if shot then
+    circfill(shot.x,shot.y,1,7)
   end
 end
 
@@ -272,6 +425,7 @@ function draw_hud()
   print(score,2,121,10)
   local lstr=tostr(lnum+1)
   print(lstr,64-#lstr*2,121,7)
+  print("a"..ammo,88,121,2)
   local tstr=tostr(flr(timer))
   print(tstr.."s",126-#tstr*4,121,6)
 end
@@ -317,6 +471,8 @@ function _draw()
         dtile(x,y)
       end
     end
+    dmons()
+    dshot()
     dplayer()
   end
   draw_hud()
@@ -457,3 +613,4 @@ __sfx__
 000a000024350283502b3503035000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000600002164024640286402b64030640000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0014000024350283502b3503035034350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300003a35030350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
