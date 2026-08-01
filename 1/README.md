@@ -23,7 +23,7 @@ A maze game with a 60-second countdown timer per level. The player explores a si
 - Generated procedurally using a seeded algorithm (same seed = same maze).
 - Must have at least one guaranteed path from start to exit.
 - Always contains exactly 1 exit.
-- Items (traps, treasures, teleports) are placed randomly, up to 2 of each per level. Items prefer dead ends; if no dead ends exist they may be placed on the critical path.
+- Items (traps, treasures, teleports, ammo) are placed randomly, up to 2 of each per level, onto dead-end cells. If a level has fewer dead ends than the number of items rolled, the excess items are dropped for that level rather than placed elsewhere (see [BUGS.md 1.2](../BUGS.md#1--maze-game) for the same shortfall applied to the exit tile).
 
 ## Player
 

@@ -55,7 +55,7 @@ Phased implementation checklist for `2.p8`, based on [README.md](README.md) and 
 
 ## Phase 6: Visuals & sound polish
 
-- [ ] Apply palette (reused from game 1's colour indices; see DESIGN.md's table)
+- [x] Apply palette (reused from game 1's colour indices; see DESIGN.md's table) — applied throughout as each element below was built; this line was left unchecked after the fact
 - [x] Player stand pose (sprite 0), patched in and wired into both the shaft and room draw calls, replacing the placeholder `rectfill` square
 - [x] Player run animation: 4-frame leg/arm cycle, separate left-facing and right-facing sequences (not mirrored) — sprites 1-4 (right), 5-8 (left). New `pdir` facing state (0=right,1=left) set on `btn(0)`/`btn(1)` in both room and shaft/corridor movement; new `pft` timer increments while moving (reset to 0 when idle), frame picked via `flr(pft/6)%4`
 - [x] Player jump animation: 4-frame flip (launch/tuck/extend/land), separate left/right sequences — sprites 9-12 (right), 13-16 (left). Frame picked directly from existing `jt`/`jT` arc progress (`flr(jt/(jT/4))`, clamped to 3), using `jdir` to pick the sequence (straight-up jumps default to the right-facing one)

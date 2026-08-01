@@ -43,6 +43,8 @@ __sfx__
 __music__
 ```
 
+**Section order matters when hand-editing a `.p8` file.** Pico-8's own canonical order is `__lua__`, `__gfx__`, `__label__`, `__map__`, `__sfx__`, `__music__` (confirmed against games 3 and 4's carts). If a section is appended in the wrong slot — game 5's `__sfx__` was once appended directly after `__gfx__`, skipping `__label__` — Pico-8 tolerates it on load but **silently drops it on the next save** (e.g. when the cart is opened and saved from the editor, or possibly on `-run` under some circumstances): it inserts its own default `__label__` where one was missing and doesn't carry forward whatever followed in the "wrong" position. Always append new sections after whatever sections already exist in the cart, in the canonical order above, not just at the end of the file. If a section you added disappears after the cart's been opened in Pico-8, check this first before assuming a content/encoding bug.
+
 ## Pico-8 data formats
 
 ### Sprite sheet (`__gfx__`)

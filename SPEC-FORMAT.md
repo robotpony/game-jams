@@ -96,7 +96,7 @@ Game 3 already follows this format; it's where the pattern came from.
 
 Game 1 shipped before DESIGN.md existed as a convention. It doesn't get one backfilled: the architecture that would go in it already lives in CLAUDE.md's Architecture section, and reconstructing a "pre-implementation" document after the fact would just be a copy with the tenses changed.
 
-Game 2 predates the four-document split entirely. Its README has been restructured to this format; DESIGN.md, PLAN.md, and CLAUDE.md are new, and unresolved design details are called out in the README's Open Questions rather than invented.
+Game 2 predates the four-document split entirely. Its README has been restructured to this format; DESIGN.md, PLAN.md, and CLAUDE.md are new, and unresolved design details are called out in the README's Open Questions rather than invented. Unlike game 1, game 2's DESIGN.md is deliberately kept updated alongside CLAUDE.md's Architecture section rather than marked superseded, a second, explicit exception to the [document lifecycle](#document-lifecycle) rule above: DESIGN.md's own preamble says why (it tracks design decisions; CLAUDE.md's Architecture section carries the line-level as-built detail), so don't treat the two as drifting duplicates or "fix" it by deleting one.
 
 ## Related
 

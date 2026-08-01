@@ -1,6 +1,6 @@
 # Plan
 
-Phases 1-4 complete. Phase 5 (monsters) implemented, not yet manually play-tested.
+Phases 1-5 complete and manually play-tested.
 
 ## Phase 1: Maze + navigation
 
@@ -39,10 +39,10 @@ Phases 1-4 complete. Phase 5 (monsters) implemented, not yet manually play-teste
 
 - [x] Ammo item (7th tile type): pickup adds +2 ammo, purple screen flash
 - [x] Monster spawn: 1-3 per level, on dead-end cells, selection independent of item placement (fixed: originally shared a leftover-dead-end pool with items and came up 0 on ~half of levels)
-- [x] Monster patrol: bounce between spawn cell and its one open neighbour, pause at each end
+- [x] Monster patrol: walk up to 8 cells along the corridor from the spawn cell, turning back at a junction, another dead end, or the 8-cell cap; pause between steps
 - [x] Monster contact: non-blocking, resets player to start tile, no score/timer change
 - [x] Shooting: O button fires in facing direction, costs 1 ammo, short cooldown
 - [x] Shot resolution: stops on wall; on monster hit, monster is defeated and shot disappears
 - [x] Monster respawn: defeated monster reappears at a different dead-end cell after 3s
 - [x] HUD: ammo counter added between level number and timer
-- [ ] Verify (manual): monster patrol never blocks the only path to the exit; shooting, respawn, and knockback all behave as documented in README.md
+- [x] Verify (manual): monster patrol never blocks the only path to the exit; shooting, respawn, and knockback all behave as documented in README.md

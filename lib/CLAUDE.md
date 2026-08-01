@@ -34,7 +34,7 @@ lib/
   rng.lua         seeded RNG wrappers, weighted choice
 ```
 
-`screen.lua` and `title.lua` are built and in use (games 1 and 3, see [`PLAN.md`](PLAN.md)). The rest of this list is still a backlog; the files don't exist yet.
+`screen.lua` and `title.lua` are built and in use (games 1, 3, and 5, see [`PLAN.md`](PLAN.md)). The rest of this list is still a backlog; the files don't exist yet.
 
 ## File format
 

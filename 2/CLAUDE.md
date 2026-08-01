@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Pico-8 game called "2 Mission" — an action/platform/puzzle game with Atari 2600 aesthetics, a vastly simplified remake of Impossible Mission (Epyx, 1984). The full spec is in [README.md](README.md), following [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
-**Status: in progress.** `2.p8` implements Phases 1–5 of [PLAN.md](PLAN.md): elevator shaft, floor generation (including corridors merged into the shaft screen, and the elevator only stopping at corridor floors), rooms, objects, search, jump, the lift-fall hazard, robots, the control room puzzle, win/loss/timer/score logic, screen-transition fades/flashes, a polished game-over screen, and the real bottom-strip HUD. Visual/sound polish (Phase 6: sprites, SFX, ambient music) and the token/performance check (Phase 7) aren't built yet — keep following README.md and [DESIGN.md](DESIGN.md) for those.
+**Status: in progress.** `2.p8` implements Phases 1–6 of [PLAN.md](PLAN.md): elevator shaft, floor generation (including corridors merged into the shaft screen, and the elevator only stopping at corridor floors), rooms, objects, search, jump, the lift-fall hazard, robots, the control room puzzle, win/loss/timer/score logic, screen-transition fades/flashes, a polished game-over screen, the real bottom-strip HUD, sprites, and SFX at every trigger site. Still open from Phase 6: the ambient elevator-pad music loop, and distinct SFX for item pickup (health vs. letter), robot hit, win, and loss. The token/performance check (Phase 7) hasn't been done yet — keep following README.md and [DESIGN.md](DESIGN.md) for those.
 
 ## Development
 
@@ -37,7 +37,7 @@ These constraints shape every implementation decision:
 - Win: submit the correct letter arrangement in the control room (behind the shaft's last valid room). Loss: timer (300s) reaches 0, or HP (starts at 5; robot hit −1, fall −3, wrong submission −1) reaches 0
 - All values are finalized in README.md and DESIGN.md (health/damage amounts, timer, palette, SFX, score formula); implement from those directly rather than re-deriving them
 
-## Architecture (Phases 1–5)
+## Architecture (Phases 1–6)
 
 `2.p8` implements the standard Pico-8 callback structure with the title screen, elevator shaft (corridors included), puzzle rooms, the control room, and game over all built:
 

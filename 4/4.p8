@@ -404,7 +404,7 @@ function draw_backdrop()
     local ex,ey=arc_xy(CX,CY,200,SC*i/2)
     line(CX,CY,ex,ey,1)
   end
-  circfill(CX,CY,2,0)
+  circfill(CX,CY,2,1)
 end
 
 function draw_trail()

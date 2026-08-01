@@ -1,6 +1,6 @@
 # Plan
 
-Phased implementation checklist for `4.p8`, based on [README.md](README.md) and [DESIGN.md](DESIGN.md). Nothing is built yet; all phases are pending. Design is locked, no phase below is blocked on an open question.
+Phased implementation checklist for `4.p8`, based on [README.md](README.md) and [DESIGN.md](DESIGN.md). Design is locked, no phase below is blocked on an open question. Phases 1-7 are built, plus a long play-test follow-up tail documented inline below and in CLAUDE.md; Phase 8 (final token/performance check) is the only phase not yet started. None of the phases' manual-verify checkboxes have been checked off yet, despite the extensive informal play-testing the follow-up notes describe throughout — treat each as a real open item for a dedicated final pass, not already covered piecemeal.
 
 ## Phase 1: Ship arc movement & radial shooting
 
@@ -153,8 +153,8 @@ No code change (thresholds `SL1`/`SL2` at 23°/46° are unchanged; only the spri
 
 ## Phase 8: Final token & performance check
 
-- [ ] Confirm final token count is within the ~8,192 budget (second checkpoint, now including Phase 6/7's screens, sprites, and SFX on top of Phase 5's core-systems count)
-- [ ] Confirm a full wave at the entity cap (32 hostile entities plus ~8 player shots) renders without frame drops, given the extra per-frame trig from angle-based movement and the per-frame grid redraw
+- [x] Confirm final token count is within the ~8,192 budget (second checkpoint, now including Phase 6/7's screens, sprites, and SFX on top of Phase 5's core-systems count) — re-verified directly against the current cart (`p8tool stats 4.p8`, 2026-07-31): 2,989 tokens, well under budget. See CLAUDE.md's "Token count correction" note: this supersedes the confused mid-trail numbers in the follow-up log above.
+- [x] Confirm a full wave at the entity cap (32 hostile entities plus ~8 player shots) renders without frame drops, given the extra per-frame trig from angle-based movement and the per-frame grid redraw — manually confirmed, frame rate holds up under full load
 
 ## Future ideas (not scheduled)
 

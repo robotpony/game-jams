@@ -47,7 +47,7 @@ Transitions: elevator movement implies scrolling by floor as it moves (constant 
   - Stationary: looks left and right at random intervals, beeping on each look.
   - Patrol: moves left and right at some speed, pausing a random amount of time at each end.
   - Chase: moves toward the player at a random speed if the player is on the same floor, confined to its own side of the centre lift gap (it won't follow the player across). If the player jumps over it, the robot pauses, "thinks" for about 1 second, then reverses direction. Also pauses briefly whenever the direction it needs to move actually changes (e.g. the player crosses from one side of it to the other), rather than reversing instantly.
-- Difficulty ramps with rooms found: robot speed and density scale up as the player collects more letters, similar in spirit to game 3's fall-speed ramp.
+- Difficulty ramps with rooms found: robot speed scales up as the player collects more letters, similar in spirit to game 3's fall-speed ramp. Density does not currently ramp; it's fixed per room at generation time (tracked as [BUGS.md #2.31](../BUGS.md#2--mission)).
 - Puzzle solving: the control room shows one blank slot per letter of the secret word. The player arranges their collected letters into the blanks (directional input to cycle/place) and submits. A correct arrangement wins immediately; a wrong one costs 1 HP and can be retried without limit.
 
 ## Player
@@ -105,7 +105,7 @@ Palette reuses game 1's Atari-2600-approximation colour index list; see [DESIGN.
 | Tile / sprite | Colour | Visual description |
 | ------------- | ------ | ------------------- |
 | Elevator car | Sky blue | Boxy car frame around the player, open on the side facing the shaft |
-| Corridor / room floor | Dark blue | Flat institutional floor and back wall |
+| Corridor / room floor | Grey | Flat institutional floor and back wall |
 | Centre lift | Teal | Vertical platform strip, animates moving top to bottom |
 | Robot | 1 of 3 random skins: red/dark red legs/white lights, solid red/yellow lights, or purple/white lights | Inverted-U arch on two legs; direction lights blink and shift to whichever side matches its current travel/look direction |
 | Object (can, desk, vending machine, shelf) | Dark green, brown, or dark grey | Distinct 8×8 silhouette per object type; each instance randomly picks 1 of 3 colour variants (same silhouette) |

@@ -58,3 +58,11 @@ Full architecture detail behind these entries (lift/void mechanics, state variab
 | 3.3 | Low | `draw_title()`'s colour frame was 5 nested 1px rectangle outlines, an ambiguous read of DESIGN.md's "alternating stripes in the item palette." | Resolved — `draw_title()` was replaced by the shared jam title card (`lib/title.lua`), which uses a colour-swatch strip instead; the ambiguity no longer applies. |
 
 Full architecture detail behind the #3 entries (SFX slot mapping, state variables) is in [`3/CLAUDE.md`](3/CLAUDE.md)'s Architecture section.
+
+## #5 — to the top
+
+| # | Severity | Bug | Status |
+| --- | -------- | --- | ------ |
+| 5.1 | High | The rope's grab logic doesn't work in real play: the player can stand next to the rope and press the grab input with no effect. Three separate fixes landed (excluding box columns from rope placement, switching from a player-pumped pendulum to a continuously auto-swinging one, then loosening the grab proximity check from a tight bob-position match to a ladder-style column/band check), each verified against its own Lua harness, but none actually fixed the in-game behaviour. Root cause not identified; deferred at the user's request rather than guessed at further. | Open |
+
+Full architecture detail behind the #5 entry (rope swing formulas, state variables) is in [`5/CLAUDE.md`](5/CLAUDE.md)'s Architecture section and PLAN.md's Phase 3 "KNOWN ISSUE, UNRESOLVED" note.

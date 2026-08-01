@@ -56,6 +56,12 @@ SFTP_PORT = 22
 SFTP_REMOTE_PATH = "jams.warpedvisions.org/"
 
 
+def step(msg: str, indent: int = 1):
+    """Prints a small, cute progress note for a sub-step within a bigger
+    milestone (see the bare `print()` calls for milestones themselves)."""
+    print(f"{'   ' * indent}↳ {msg}")
+
+
 def read(path: Path):
     return path.read_text(encoding="utf-8") if path.exists() else None
 
@@ -160,15 +166,20 @@ def ensure_export(num: str, cart_path: Path) -> tuple[str | None, str]:
     out_dir = EXPORTS_DIR / num
     out_html = out_dir / f"{num}.html"
     if out_html.exists():
+        step(f"already has a web export, reusing it")
         return f"exports/{num}/{num}.html", "ok"
     if not cart_path.exists():
+        step(f"no cart yet, still cooking in the design oven")
         return None, "no cart"
     if not has_label(cart_path):
+        step(f"cart found but unlabeled, pico8 won't export it yet")
         return None, "no label captured yet"
     pico8 = find_pico8()
     if not pico8:
+        step(f"cart is ready but no pico8 binary found, set PICO8_PATH")
         return None, "pico8 binary not found (set PICO8_PATH)"
     out_dir.mkdir(parents=True, exist_ok=True)
+    step(f"popping cart {num} into pico8 for a web export...")
     try:
         result = subprocess.run(
             [pico8, "-x", cart_path.name, "-export", str(out_html.resolve())],
@@ -178,10 +189,13 @@ def ensure_export(num: str, cart_path: Path) -> tuple[str | None, str]:
             timeout=60,
         )
     except (subprocess.SubprocessError, OSError) as e:
+        step(f"export blew a fuse: {e}")
         return None, f"export failed to run ({e})"
     if out_html.exists():
+        step(f"export complete, {num} is now playable in-browser")
         return f"exports/{num}/{num}.html", "ok"
     detail = (result.stderr or result.stdout or "").strip().splitlines()
+    step(f"export ran but no file showed up, that's odd")
     return None, f"export ran but produced no file ({detail[-1] if detail else 'no output'})"
 
 
@@ -193,15 +207,23 @@ def stage_download(num: str, cart_path: Path) -> str | None:
     DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
     dest = DOWNLOADS_DIR / cart_path.name
     shutil.copy2(cart_path, dest)
+    step(f"tucked a download copy into downloads/{cart_path.name}")
     return f"downloads/{cart_path.name}"
 
 
 def collect_game(dir_: Path, github_base: str | None) -> dict:
     num = dir_.name
+    print(f"🔍 peeking into {num}/ ...")
     cart_path = dir_ / f"{num}.p8"
     readme = read(dir_ / "README.md")
+    title = extract_title(readme or "")
+    if readme:
+        step(f'found README.md — "{title or "(untitled)"}"')
+    else:
+        step("no README.md yet, shrug emoji")
     embed_path, embed_status = ensure_export(num, cart_path)
     has_design = (dir_ / "DESIGN.md").exists()
+    step(f"design doc: {'yep, spotted DESIGN.md' if has_design else 'not written yet'}")
     return {
         "num": num,
         "title": extract_title(readme or ""),
@@ -234,16 +256,17 @@ def publish() -> None:
     system `sftp` binary in batch mode: no new dependency, and auth is
     whatever the system's SSH agent/keys/~/.ssh/config already provide, so
     no credentials are ever handled or stored by this script."""
+    print("🚀 prepping the preview for launch...")
     if not SFTP_ENABLED:
-        print("sftp publishing is disabled (set SFTP_ENABLED = True in generate.py)")
+        print("😴 sftp publishing is disabled (set SFTP_ENABLED = True in generate.py)")
         return
     if not SFTP_HOST or not SFTP_REMOTE_PATH:
-        print("SFTP_HOST and SFTP_REMOTE_PATH must be set in generate.py")
+        print("🤔 SFTP_HOST and SFTP_REMOTE_PATH must be set in generate.py")
         return
 
     index_path = SCRIPT_DIR / "index.html"
     if not index_path.is_file():
-        print(f"nothing to publish, {index_path} does not exist yet (run 'python3 generate.py' first)")
+        print(f"📭 nothing to publish, {index_path} does not exist yet (run 'python3 generate.py' first)")
         return
 
     target = f"{SFTP_USER}@{SFTP_HOST}" if SFTP_USER else SFTP_HOST
@@ -254,36 +277,53 @@ def publish() -> None:
     # itself (which would nest everything one level deeper, under an extra
     # preview/ subdirectory on the remote). Only existing items are queued —
     # downloads/exports/games won't exist yet on a repo with no built carts.
+    print("📦 packing the crate...")
+    step("index.html")
     batch_lines = [f"put {index_path} {SFTP_REMOTE_PATH}"]
     for item in ("theme", "downloads", "exports", "games"):
         local_dir = SCRIPT_DIR / item
         if local_dir.is_dir():
+            step(f"{item}/")
             batch_lines.append(f"put -r {local_dir} {SFTP_REMOTE_PATH}")
     batch = "\n".join(batch_lines) + "\n"
 
+    print(f"🛰️  beaming everything up to {target}:{SFTP_REMOTE_PATH} ...")
     try:
         out = subprocess.run(
             ["sftp", "-P", str(SFTP_PORT), "-b", "-", target],
             input=batch, capture_output=True, text=True, timeout=120,
         )
     except (OSError, subprocess.SubprocessError) as e:
-        print(f"sftp publish failed: {e}")
+        print(f"💥 sftp publish failed: {e}")
         return
 
     if out.returncode != 0:
-        print(f"sftp publish failed: {out.stderr.strip() or out.stdout.strip()}")
+        print(f"💔 sftp publish failed: {out.stderr.strip() or out.stdout.strip()}")
     else:
-        print(f"published preview/ -> {target}:{SFTP_REMOTE_PATH}")
+        print(f"🎉 published! preview/ is now live at {target}:{SFTP_REMOTE_PATH}")
 
 
 def generate():
+    print("🎲 waking up the game jam preview generator...")
+    print("🗂️  scanning the repo for numbered game folders...")
     game_dirs = sorted(
         (d for d in ROOT.iterdir() if d.is_dir() and d.name.isdigit()),
         key=lambda d: int(d.name),
     )
+    if game_dirs:
+        found = ", ".join(f"{d.name}/" for d in game_dirs)
+        step(f"found {len(game_dirs)} folder(s): {found}", indent=1)
+    else:
+        step("found none, awfully quiet in here", indent=1)
+
+    print("🔗 sniffing out the GitHub remote for doc links...")
     github_base = github_repo_url()
+    step(f"resolved: {github_base}" if github_base else "no remote configured, falling back to plain paths")
+
+    print("🎮 touring each game folder...")
     games = [collect_game(d, github_base) for d in game_dirs]
 
+    print("📖 reading the root README for the page intro...")
     root_readme = read(ROOT / "README.md")
     data = {
         "games": games,
@@ -296,22 +336,25 @@ def generate():
     # to guard against.
     json_blob = re.sub(r"</script", "<\\/script", json_blob, flags=re.IGNORECASE)
 
+    print("🧵 weaving the tile grid into index.html...")
     repo_nav = f'<a href="{github_base}">repo</a>' if github_base else ""
     html = TEMPLATE.replace("__DATA__", json_blob).replace("__REPO_NAV__", repo_nav)
     (SCRIPT_DIR / "index.html").write_text(html, encoding="utf-8")
+    step("saved preview/index.html")
 
+    print("📄 stamping out a standalone page per game...")
     for g in games:
         write_game_page(g)
+        step(f"games/{g['num']}.html ready")
 
     built = sum(1 for g in games if g["hasCart"])
     embedded = sum(1 for g in games if g["embedPath"])
-    print(f"Wrote preview/index.html — {len(games)} games ({built} built, {embedded} with a live embed)")
-    print(f"Wrote preview/games/<n>.html for {len(games)} games")
+    print(f"\n🏁 all done! {len(games)} game(s), {built} built, {embedded} with a live embed to play.")
     if not github_base:
-        print("  note: no GitHub origin remote resolved — readme/design back-rows show local paths, not links")
+        print("   ⚠️  no GitHub origin remote resolved — readme/design back-rows show local paths, not links")
     for g in games:
         if g["hasCart"] and not g["embedPath"]:
-            print(f"  game {g['num']}: cart exists but no live embed — {g['embedStatus']}")
+            print(f"   ⚠️  game {g['num']}: cart exists but no live embed — {g['embedStatus']}")
 
 
 TEMPLATE = r"""<!doctype html>

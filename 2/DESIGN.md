@@ -59,7 +59,7 @@ Reuses game 1's Atari-2600-approximation colour indices (see [`../1/CLAUDE.md`](
 | ------- | ------ | ----- |
 | Background | Black | 0 |
 | Elevator car | Sky blue | 6 |
-| Corridor / room floor | Dark blue | 5 |
+| Corridor / room floor | Grey | 5 |
 | Centre lift | Teal | 12 |
 | Robot (skin 1) | Red body, dark red legs, white lights | 8, 13, 7 |
 | Robot (skin 2) | Red body, yellow lights | 8, 10 |

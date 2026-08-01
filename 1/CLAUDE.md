@@ -26,7 +26,7 @@ These constraints shape every implementation decision:
 - **Display**: 128×128 pixels, 16-colour palette
 - **Sprites**: 8×8 pixels each, 256 slots in the sprite sheet
 - **Map**: 128×64 cells, shared memory with the bottom half of the sprite sheet
-- **Colours**: Pico-8 has its own 16-colour palette — to approximate Atari 2600, use black (0), white (7), red (8), orange (9), yellow (10), green (11), dark green (3), teal (12), sky blue (6), dark blue (5), purple (2), dark red (13)
+- **Colours**: Pico-8 has its own 16-colour palette — to approximate Atari 2600, use black (0), white (7), red (8), orange (9), yellow (10), green (11), dark green (3), teal (12), sky blue (6), dark blue (1), grey (5), purple (2), dark red (13)
 - **Sound**: 64 SFX slots, 4 channels
 - **Lua variant**: Pico-8 Lua omits some standard library functions. No `string.format` on older versions; use `tostr()`, `tonum()`, `sub()`, `#str` for strings
 
