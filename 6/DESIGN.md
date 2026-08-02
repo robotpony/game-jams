@@ -1,4 +1,4 @@
-# 6 Land of Simplex — Design
+# 6 Dug, Dug, Down. — Design
 
 Pre-implementation technical design. See [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md) for what this document covers versus [README.md](README.md) and [CLAUDE.md](CLAUDE.md).
 
@@ -64,7 +64,25 @@ Black (0) and a couple of other indices (e.g. white 7 doubling as an outline col
 
 ## Core system design
 
-**World generation** — A single bounded cave, generated once at game start, stored in Pico-8's native map (128×64 cells), in two passes. First, noise (or a cellular-automata smoothing pass over it) decides open floor versus wall, carving connected traversable paths rather than leaving the map fully solid; spawn lands on open floor by construction. Second, every wall cell gets assigned one of the 16 block types; exact noise algorithm is still open (see README's Open Questions), but whatever's chosen needs to also factor in distance-from-spawn to bias which tier of block (and, separately, which chest/monster spawns onto nearby open floor) is likely at a given cell. A reasonable shape for the second pass: compute base block tier from noise, then re-roll cells that land on a tier the current distance-from-spawn doesn't yet "unlock" down to a lower tier, so tier-2/3 material can't appear right next to spawn even if noise would otherwise put it there. Mining a wall block converts that cell to floor; player, monsters, and chests are only ever placed on floor cells, never embedded in unmined wall.
+**Controls** — Pico-8 gives this game 4 direction buttons plus 2 action buttons (O/Z, X), and it needs more distinct actions than that (mine, attack, parry, interact, inventory-toggle), so most of the mapping is context-sensitive rather than one-button-one-action:
+
+| Input | Effect |
+| ----- | ------ |
+| Directions | Move (8-way) and set facing (see Mining below) |
+| O, held, facing a block | Mine (damage-over-time while resistance is met) |
+| O, tapped, facing a monster in melee range | Attack (weapon swing) |
+| O, tapped, facing a chest | Interact (open) |
+| X, tapped | Parry (timed window, see Combat below) |
+| O+X, held together | Toggle Inventory overlay |
+
+No dedicated run button: with both action buttons already spoken for, movement is a single fixed speed rather than adding a walk/run chord (see README's Player section). "Any button" scene transitions (Title/End/Help-dismiss) aren't gameplay-sensitive, so they're unaffected by this mapping. The Help overlay's controls reference (see Chests & help) should show this table.
+
+**World generation** — A single bounded cave, generated once at game start, stored in Pico-8's native map (128×64 cells), in two passes, neither of which uses a continuous noise function:
+
+1. **Floor/wall shape**: classic cellular automata. Randomly fill the map (each cell wall with some seed probability, e.g. ~45%), then run a handful of smoothing iterations (a cell becomes wall/floor based on how many of its 8 neighbours are currently wall, via repeated `lib/map.lua` `neighbour()` scans) until the noisy fill relaxes into organic-looking connected caverns. Spawn lands on open floor by construction (pick a floor cell, or force one open if the seed roll didn't leave one nearby).
+2. **Block type per wall cell**: no spatial noise here either. Each wall cell rolls its tier via `lib/rng.lua`'s `weighted()`, with the weight table itself shifted by that cell's distance-from-spawn (closer cells get a table biased toward tier 1, farther cells shift weight toward tier 2/3), then a specific block within that tier picked uniformly. Equivalent in effect to the originally-sketched "compute base tier then re-roll cells the current distance doesn't unlock," but implemented as a single weighted roll against a distance-adjusted table rather than a separate re-roll step.
+
+Mining a wall block converts that cell to floor; player, monsters, and chests are only ever placed on floor cells, never embedded in unmined wall. Chosen over a value-noise lattice or layered sin/cos approximation for token cost: cellular automata's neighbour-count rule is a handful of cheap integer comparisons per cell (and reuses `map.lua`'s `neighbour()`), with no interpolation or trig math anywhere in generation.
 
 **Spawn placement** — Randomized each run rather than fixed, within a margin from the map's edges (enough room on every side for the tier-2/3 gradient to have space to play out; exact margin TBD once world gen is implemented and testable). "Distance from spawn" is Euclidean tile distance from that run's spawn point, recomputed against whichever cell the player is checking.
 
@@ -85,8 +103,9 @@ Tool power (damage dealt per mining tick while resistance is met), first-pass:
 | 1 (Basic Pick) | 2/tick |
 | 2 (Mid Pick) | 4/tick |
 | 3 (Advanced Pick) | 7/tick |
+| 4 (Runic Pick) | 12/tick |
 
-A higher tool tier both unlocks harder blocks (via resistance) and mines faster (via power), so upgrading is always worth it, not just a gate.
+A higher tool tier both unlocks harder blocks (via resistance) and mines faster (via power), so upgrading is always worth it, not just a gate — except tier 4, which is pure power with no new resistance to unlock (no block needs resistance 4; see README's Blocks, mining & crafting on Ancient Stone). Runic Pick is a reward for reaching the deepest terrain, not a further gate on top of it.
 
 **Combat** — Weapon damage per hit, first-pass:
 
@@ -95,6 +114,7 @@ A higher tool tier both unlocks harder blocks (via resistance) and mines faster 
 | 1 (Basic Blade) | 2 |
 | 2 (Mid Blade) | 4 |
 | 3 (Advanced Blade) | 7 |
+| 4 (Runic Blade) | 12 |
 
 Parry is a timed input (a short window, tune once playable, starting guess ~6-10 frames) that fully negates incoming damage from an attack landing during it, distinct from a passive block; whiffing a parry outside its window does nothing (no penalty beyond taking the hit normally). Applies uniformly to melee and ranged damage, including Spitting Slug's spit, Bone Archer's arrows, and Cave Warden's ranged mode, not just melee swings: the check is "did damage land during the window," not attack type.
 
@@ -111,7 +131,7 @@ Monster HP/damage, first-pass, scaling with the difficulty ladder from README's 
 | Bone Archer | 10 | 3 |
 | Cave Warden | 25 | 3 |
 
-**Visibility** — A radius (in tiles, tune once playable, starting guess 3-4 tiles) around the player is fully lit; beyond it, blocks/monsters/chests aren't drawn. The lit/unlit boundary itself dithers rather than cutting sharply (a chosen visual treatment, not just "nothing drawn" — costs more per-frame draw work than a hard cutoff, budget for it in Phase 8's token check). Glowstone blocks and an equipped Lantern each extend the radius while the player is near/holding one; exact stacking behaviour (does having both give a bigger radius than either alone?) isn't decided yet.
+**Visibility** — A radius (in tiles, tune once playable, starting guess 3-4 tiles) around the player is fully lit; beyond it, blocks/monsters/chests aren't drawn. The lit/unlit boundary itself dithers rather than cutting sharply (a chosen visual treatment, not just "nothing drawn" — costs more per-frame draw work than a hard cutoff, budget for it in Phase 8's token check). Glowstone blocks and an equipped Lantern each extend the radius while the player is near/holding one; no stacking, `radius = max(base, glowstone_radius, lantern_radius)` when both are in effect at once, simpler than tuning an additive bonus pair and avoids the fog mechanic getting trivialized by parking next to a Glowstone with a Lantern equipped.
 
 **Chests** — Placed during world generation at a modest rate (tune once playable), not a block type, walked up to and opened with an interact input (instant, no timed search). Loot table: weighted toward common materials, a smaller chance of a Health Potion, a small chance of the Book (skipped once already found).
 

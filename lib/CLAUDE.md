@@ -34,7 +34,7 @@ lib/
   rng.lua         seeded RNG wrappers, weighted choice
 ```
 
-`screen.lua` and `title.lua` are built and in use (games 1, 3, and 5, see [`PLAN.md`](PLAN.md)). The rest of this list is still a backlog; the files don't exist yet.
+`screen.lua`, `title.lua`, and `math.lua` are built and in use (games 1, 3, 4, and 5, see [`PLAN.md`](PLAN.md)). `rng.lua`, `input.lua`, `hud.lua`, `collision.lua`, `map.lua`, and `state.lua` are also built, for game 6's Phase 0 (see [`../6/PLAN.md`](../6/PLAN.md)); they haven't been exercised by a real cart yet since `6.p8` doesn't exist yet. `screen.lua`'s flash/fade/shake is the only piece of the original folder layout still unbuilt.
 
 ## File format
 
