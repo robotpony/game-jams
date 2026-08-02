@@ -18,4 +18,5 @@ Each entry's spec follows the format in [SPEC-FORMAT.md](SPEC-FORMAT.md).
 3. Fruit drop game. An action/puzzler with combos and a fast pace.
 4. Gyri #4, a Space Invaders/Galaga-style shooter where ship and enemies move along concentric arcs instead of straight lines.
 5. 5 To The Top, a wild-west-themed vertical platform puzzler, a side-view re-imagining of early-80s climbing games.
+6. Land of Simplex, a procedurally generated top-down action RPG using Simplex noise for terrain generation.
 
