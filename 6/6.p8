@@ -1,7 +1,8 @@
 pico-8 cartridge // http://www.pico-8.com
 version 43
 __lua__
--- 6: dug, dug, down. -- phase 1: world gen & camera. phase 2: mining. phase 3: edge wrap
+-- 6: dug, dug, down. -- phase 1: world gen & camera. phase 2: mining.
+-- phase 3: edge wrap. phase 4: combat & monsters
 
 -- lib/map.lua
 function cell_xy(px,py)
@@ -242,19 +243,142 @@ function try_mine(tx,ty)
   end
 end
 
+-- combat data, type ids 1-6 matching readme's monsters table order
+-- (bat,crawler,slug,wraith,archer,warden); all first-pass per design.md
+mhp={4,10,8,12,10,25}
+mdmg={1,2,2,2,3,3}
+mspd={0.8,0.35,0.25,0.9,0.4,0.5}
+mrng={0,0,3.5,0,5.5,3.5} -- 0=melee(contact only), >0=ranged engage range
+  -- in cells, not pixels: pico-8's fixed-point numbers overflow squaring
+  -- anything past ~181 (16.16 format's ~32767 ceiling), and this map is
+  -- 1024x512px, so upd_mon/try_attack's distance checks work in cell
+  -- units (divide by 8) to stay well under that -- see plan.md's phase 4
+  -- bug note. warden's "melee + occasional ranged" is approximated as a
+  -- short ranged tier (slug's) rather than real dual-mode ai -- a scope
+  -- cut, not an oversight
+mcol={5,4,11,13,6,14} -- design.md's palette table
+wpow={2,4,7} -- weapon damage per hit, indexed by equipped weapon tier
+
+-- 12 monsters, placed on random floor cells and tier-weighted by distance
+-- from spawn (near/mid/far cum tables, same shape as pick_block's, reusing
+-- neard/midd already computed in gen_world -- one distance-bias mechanism
+-- for both blocks and monsters instead of two). tier picks a pair (bat/
+-- crawler, slug/wraith, archer/warden), a coin flip picks within the pair
+function gen_monsters()
+  mon={}
+  for i=1,12 do
+    local cx,cy=flr(rnd(w)),flr(rnd(h))
+    for t=1,20 do
+      if mget(cx,cy)==0 then break end
+      cx,cy=flr(rnd(w)),flr(rnd(h))
+    end
+    local dx,dy=cx-spx,cy-spy
+    local d=sqrt(dx*dx+dy*dy)
+    local cum
+    if d<neard then cum={70,95,100}
+    elseif d<midd then cum={30,75,100}
+    else cum={10,50,100} end
+    local tier=weighted({1,2,3},cum,100)
+    local typ=(tier-1)*2+1+flr(rnd(2))
+    add(mon,{x=cx*8,y=cy*8,typ=typ,hp=mhp[typ],cd=0})
+  end
+end
+
+function hpdmg(n)
+  hp=max(0,hp-n)
+  if hp<=0 then dead=true end
+end
+
+-- parry (x, tapped) opens a short window (parryt, in frames); any monster
+-- damage landing while it's still active is fully negated, per design.md
+-- ("did damage land during the window," melee and ranged both route
+-- through here). lava's hazard damage bypasses this and calls hpdmg()
+-- directly -- parry is for monster attacks, not terrain
+function dmg_player(n)
+  if parryt>0 then parryt=0 return end
+  hpdmg(n)
+end
+
+-- one mover/attacker for all 6 types via the per-type mspd/mrng tables
+-- above, rather than six special-cased ai functions. melee types (rng==0)
+-- chase and contact-damage on cooldown; ranged types close until inside
+-- their engage range then hold and attack, except bone archer (typ 5)
+-- which kites away once the player gets inside half its range. cave bat
+-- (typ 1) gets a small random per-frame jitter on top of its chase, a
+-- cheap stand-in for "erratic" movement rather than a real flight pattern.
+-- dx/dy/d are computed in cells, not pixels (see mrng's comment on why);
+-- dx/d and dy/d stay a correctly-normalized unit direction regardless of
+-- that scale, so pixel-space movement (m.x/m.y += ...*sp) is unaffected
+function upd_mon(m)
+  local typ,rng=m.typ,mrng[m.typ]
+  local dx,dy=(px-m.x)/8,(py-m.y)/8
+  local d=sqrt(dx*dx+dy*dy)
+  local sp=mspd[typ]
+  if rng>0 then
+    if typ==5 and d<rng*0.5 then
+      if d>0 then m.x-=dx/d*sp m.y-=dy/d*sp end
+    elseif d>rng and d>0 then
+      m.x+=dx/d*sp m.y+=dy/d*sp
+    end
+  elseif d>0.5 then
+    m.x+=dx/d*sp m.y+=dy/d*sp
+  end
+  if typ==1 then m.x+=rnd(1)-0.5 end
+  m.cd=max(0,m.cd-1)
+  local inrange=rng>0 and d<=rng or (rng==0 and d<=0.75)
+  if inrange and m.cd<=0 then
+    dmg_player(mdmg[typ])
+    m.cd=30
+  end
+end
+
+-- weapon swing (o, tapped): hits the first monster found within melee
+-- range of the tile the player's facing (typically the only one there).
+-- one hit per press since btnp already edge-detects -- holding o doesn't
+-- spam swings, and mining's hold-to-damage on the same button (try_mine)
+-- only ever fires against blocks, never monsters, so the two don't cross.
+-- a kill drops one unit of that type's material into mat[16+typ] (ids
+-- 17-22, distinct from block ids 1-16 in the same flat table -- bat wing,
+-- crawler shell, slug gland, wraith essence, old bone, warden core, in
+-- readme's monster-table order)
+function try_attack()
+  local hx,hy=px+4+fx*8,py+4+fy*8
+  for m in all(mon) do
+    local ddx,ddy=m.x+4-hx,m.y+4-hy
+    -- abs() pre-filter rejects far monsters before squaring, not just for
+    -- speed: squaring an unfiltered ddx/ddy would overflow pico-8's
+    -- fixed-point range for anything more than ~181px away (see mrng's
+    -- comment), silently corrupting the comparison instead of erroring
+    if abs(ddx)<8 and abs(ddy)<8 and ddx*ddx+ddy*ddy<64 then
+      m.hp-=wpow[wtier]
+      if m.hp<=0 then
+        local id=16+m.typ
+        mat[id]=min(99,(mat[id] or 0)+1)
+        del(mon,m)
+      end
+      return
+    end
+  end
+end
+
 function _init()
   gen_world()
+  gen_monsters()
   px,py=spx*8,spy*8
   fx,fy=0,1
   tool=1 -- equipped tool tier; placeholder until phase 5's real equip slot
-  hp=10 -- first-pass starting hp (design.md); phase 4 adds monster damage/death
-  mat={} -- material counts by block id, drops accrue here (phase 5 gives this a ui)
+  wtier=1 -- equipped weapon tier; same placeholder pattern as tool
+  hp=10 -- first-pass starting hp (design.md)
+  dead=false
+  parryt=0
+  mat={} -- material counts by id: 1-16 block drops (phase 2), 17-22 monster drops
   lavat=0
   camx=mid(0,px+4-64,w*8-128)
   camy=mid(0,py+4-64,h*8-128)
 end
 
 function _update()
+  if dead then return end -- freeze on death; end screen is a later phase's job
   local dx,dy=0,0
   if btn(0) then dx=-1 end
   if btn(1) then dx=1 end
@@ -278,13 +402,23 @@ function _update()
   end
 
   -- lava: contact damage, ticked (not per-frame) while standing on it;
-  -- not mined (blocktier returns nil for id 13), just a passable hazard
+  -- not mined (blocktier returns nil for id 13), just a passable hazard.
+  -- goes through hpdmg() directly, not dmg_player(), so parry can't
+  -- cheese terrain damage (see dmg_player's comment)
   if mget(cx,cy)==13 then
     lavat+=1
-    if lavat%15==0 then hp=max(0,hp-1) end
+    if lavat%15==0 then hpdmg(1) end
   else
     lavat=0
   end
+
+  -- combat: o tapped = weapon swing (edge-triggered, separate from o
+  -- held's mining above); x tapped = open a parry window
+  if btnp(4) then try_attack() end
+  if btnp(5) then parryt=8 end
+  parryt=max(0,parryt-1)
+
+  for m in all(mon) do upd_mon(m) end
 end
 
 function _draw()
@@ -299,6 +433,9 @@ function _draw()
         rectfill(cx*8,cy*8,cx*8+7,cy*8+7,bcol[t])
       end
     end
+  end
+  for m in all(mon) do
+    rectfill(m.x,m.y,m.x+7,m.y+7,mcol[m.typ]) -- placeholder: flat colour square, real sprites are phase 8
   end
   rectfill(px,py,px+7,py+7,7) -- player placeholder: white square
 end
