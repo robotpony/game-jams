@@ -2,7 +2,8 @@ pico-8 cartridge // http://www.pico-8.com
 version 43
 __lua__
 -- 6: dug, dug, down. -- phase 1: world gen & camera. phase 2: mining.
--- phase 3: edge wrap. phase 4: combat & monsters
+-- phase 3: edge wrap. phase 4: combat & monsters. phase 5: inventory &
+-- crafting. phase 6: chests & help
 
 -- lib/map.lua
 function cell_xy(px,py)
@@ -22,6 +23,14 @@ function weighted(vals,cum,total)
     if r<cum[i] then return vals[i] end
   end
   return vals[#vals]
+end
+
+-- lib/input.lua
+function any_btnp()
+  for i=0,5 do
+    if btnp(i) then return true end
+  end
+  return false
 end
 
 -- world: 128x64 cell map. cell value 0=floor, 1-16=wall block id
@@ -217,7 +226,9 @@ function blocktier(id)
 end
 
 hpmax={10,20,35}
-toolpow={2,4,7} -- damage per mining tick, indexed by equipped tool tier
+toolpow={2,4,7,12} -- damage per mining tick, indexed by equipped tool tier
+  -- (4th entry is runic pick's -- phase 2 only needed tiers 1-3, tier 4
+  -- wasn't reachable until phase 5's crafting added it)
 
 -- mining: hold o (btn(4)) while facing a block. tier gates whether the
 -- equipped tool can damage it at all; once gated in, hp is chipped down
@@ -238,6 +249,9 @@ function try_mine(tx,ty)
     if mhp<=0 then
       mset(tx,ty,0)
       mat[id]=min(99,(mat[id] or 0)+1)
+      if id==15 then add_coins(10) end -- treasure vein: readme's "guaranteed
+        -- bonus drop" beyond the normal material, deferred from phase 2
+        -- until coins existed to pay it out; first-pass amount
       mcx=nil
     end
   end
@@ -257,7 +271,8 @@ mrng={0,0,3.5,0,5.5,3.5} -- 0=melee(contact only), >0=ranged engage range
   -- short ranged tier (slug's) rather than real dual-mode ai -- a scope
   -- cut, not an oversight
 mcol={5,4,11,13,6,14} -- design.md's palette table
-wpow={2,4,7} -- weapon damage per hit, indexed by equipped weapon tier
+wpow={2,4,7,12} -- weapon damage per hit, indexed by equipped weapon tier
+  -- (4th entry is runic blade's, same reason as toolpow's above)
 
 -- 12 monsters, placed on random floor cells and tier-weighted by distance
 -- from spawn (near/mid/far cum tables, same shape as pick_block's, reusing
@@ -341,8 +356,15 @@ end
 -- 17-22, distinct from block ids 1-16 in the same flat table -- bat wing,
 -- crawler shell, slug gland, wraith essence, old bone, warden core, in
 -- readme's monster-table order)
+-- the point one cell ahead of the player, in their current facing --
+-- shared by try_attack/open_chest, both of which hit-test against it
+function facing_pt()
+  return px+4+fx*8,py+4+fy*8
+end
+
 function try_attack()
-  local hx,hy=px+4+fx*8,py+4+fy*8
+  if wtier<1 then return end -- no weapon equipped (see craft()'s note on why this can happen)
+  local hx,hy=facing_pt()
   for m in all(mon) do
     local ddx,ddy=m.x+4-hx,m.y+4-hy
     -- abs() pre-filter rejects far monsters before squaring, not just for
@@ -361,23 +383,225 @@ function try_attack()
   end
 end
 
+-- chests: world objects, not blocks, placed on random floor cells at
+-- _init() time like gen_monsters() but with no distance-tier bias --
+-- readme only calls for a "modest spawn rate," not a difficulty curve.
+-- opening one removes it from the list (see open_chest()) rather than
+-- tracking an opened flag, the same "fully consumed" treatment killed
+-- monsters and mined blocks already get
+function gen_chests()
+  chest={}
+  for i=1,8 do
+    local cx,cy=flr(rnd(w)),flr(rnd(h))
+    for t=1,20 do
+      if mget(cx,cy)==0 then break end
+      cx,cy=flr(rnd(w)),flr(rnd(h))
+    end
+    add(chest,{x=cx*8,y=cy*8})
+  end
+end
+
+-- only the 14 non-hazard block ids are valid chest loot (13/14, lava/
+-- water, aren't a "material" anyone could carry)
+lootmat={1,2,3,4,5,6,7,8,9,10,11,12,15,16}
+
+-- weighted toward materials, occasionally a potion, rarely the book --
+-- readme's "a chest that would roll a second book rolls something else
+-- instead" falls out for free here: if book's already true the r<10
+-- branch's guard fails and control drops through to the r<30 potion
+-- branch (r<10 implies r<30), no separate re-roll needed
+function loot()
+  local r=rnd(100)
+  if r<10 and not book then
+    book=true
+  elseif r<30 then
+    inv[8]=min(99,inv[8]+1)
+  else
+    local id=lootmat[1+flr(rnd(14))]
+    mat[id]=min(99,(mat[id] or 0)+1)
+  end
+end
+
+-- interact (o, tapped, facing a chest): instant, no timed search, per
+-- readme. shares try_attack's facing_pt()/abs()-prefilter targeting
+-- pattern for the same overflow-safety reason (see try_attack's comment)
+function open_chest()
+  local hx,hy=facing_pt()
+  for c in all(chest) do
+    local ddx,ddy=c.x+4-hx,c.y+4-hy
+    if abs(ddx)<8 and abs(ddy)<8 and ddx*ddx+ddy*ddy<64 then
+      loot()
+      del(chest,c)
+      return true
+    end
+  end
+  return false
+end
+
+-- o-tap dispatch: a chest takes priority over a monster if somehow both
+-- are in range at once (rare, unplaced against each other on purpose --
+-- see gen_chests()); try_attack() already no-ops with nothing to hit
+function do_action()
+  if not open_chest() then try_attack() end
+end
+
+-- help overlay: full-screen, paused, matching game 2's help-screen
+-- precedent (bezel border, distinct text colour) per design.md. help_on
+-- freezes _update() (see its first line) the same way dead does; nothing
+-- sets help_on=true yet since reaching it is "from inventory, once the
+-- book is found," and the inventory screen itself is phase 7's job --
+-- this phase only builds the overlay and its content, verified by
+-- forcing the flag on for a screenshot, not a live in-game trigger.
+-- monster-drop reference only lists bat wing/wraith essence/warden core:
+-- readme's recipe table has no crafting use for crawler shell/slug
+-- gland/old bone, but they're not dead weight -- design.md's scoring
+-- formula counts materials_collected regardless of recipe use, so they
+-- still pay off as score. leaving the other three off a screen billed as
+-- "genuinely useful" (readme) rather than padding it with entries that'd
+-- send the player looking for a recipe that doesn't exist
+function draw_help()
+  cls(0)
+  rect(2,2,125,125,6)
+  local c=11
+  print("help",6,6,c)
+  print("arrows move",6,16,c)
+  print("o: mine/attack/open chest",6,24,c)
+  print("x: parry",6,32,c)
+  print("o+x: inventory",6,40,c)
+  print("tool tier mines matching",6,52,c)
+  print("block tier or lower",6,60,c)
+  print("runic pick(t4) mines any",6,68,c)
+  print("bat wing -> basic blade",6,80,c)
+  print("wraith essence -> mid blade",6,88,c)
+  print("warden core ->",6,96,c)
+  print("  adv/runic blade",6,104,c)
+  if help_t<=0 then
+    print("press any button to close",6,116,c)
+  end
+end
+
+-- inv[1-8]: general item-type slots, readme's items-table order (basic/
+-- mid/advanced pick, basic/mid/advanced blade, lantern, health potion),
+-- each capped at 99. tool/wtier (equip slots) are separate from owning a
+-- slot count -- equip_tool/equip_weapon below only ever set them to a
+-- tier the player actually owns, so "equipped" always implies "owned"
+coins=0
+maxhp=10
+
+-- flat recipe lookup, readme's crafting-table order. each ingredient is
+-- {id,qty}: id 1-22 reads/writes mat[] (16 block ids + 6 monster-drop
+-- ids, same table phases 2/4 already write into), id 101-108 reads/
+-- writes inv[id-100] -- lets "1 basic pick" be consumed as an ingredient
+-- the same way "3 copper ore" is, one lookup mechanism instead of two.
+-- out 1-8 is a general inv[] slot; out 9/10 are runic pick/blade, which
+-- don't get a slot at all (see craft())
+recipe={
+  {out=1,ing={{3,3}}},
+  {out=2,ing={{6,3},{101,1}}},
+  {out=3,ing={{10,3},{102,1}}},
+  {out=4,ing={{3,2},{17,1}}},
+  {out=5,ing={{6,2},{20,1}}},
+  {out=6,ing={{10,2},{11,1},{22,1}}},
+  {out=9,ing={{12,3},{103,1}}},
+  {out=10,ing={{12,2},{22,1},{106,1}}},
+  {out=7,ing={{16,2}}},
+  {out=8,ing={{7,2}}},
+}
+
+function getqty(id)
+  if id>100 then return inv[id-100] or 0 end
+  return mat[id] or 0
+end
+function useqty(id,n)
+  if id>100 then inv[id-100]-=n
+  else mat[id]=(mat[id] or 0)-n end
+end
+
+function can_craft(ri)
+  for i in all(recipe[ri].ing) do
+    if getqty(i[1])<i[2] then return false end
+  end
+  return true
+end
+
+-- crafts recipe index ri if affordable; consumes ingredients, then either
+-- produces one unit into the matching general slot, or -- runic pick/
+-- blade only -- auto-equips straight into tool/wtier per readme (rp/rb
+-- track "ever crafted" so equip_tool/equip_weapon can offer tier 4 again
+-- later even though it has no owned-count slot to check).
+-- an upgrade recipe (mid/advanced pick or blade) consumes the prior tier
+-- as an ingredient; if that happened to be the currently *equipped* one,
+-- its owned count just dropped to 0 while tool/wtier still names that
+-- tier -- readme only auto-equips runic, not ordinary upgrades, so the
+-- fix isn't to auto-equip the new item, it's to clear the now-stale
+-- equip slot back to "nothing equipped" (0) rather than leave it
+-- pointing at a tier the player no longer owns. try_attack already
+-- guards wtier==0; try_mine's tool<tier resistance check does too, for
+-- free, since 0<tier is always true
+function craft(ri)
+  if not can_craft(ri) then return false end
+  for i in all(recipe[ri].ing) do useqty(i[1],i[2]) end
+  local out=recipe[ri].out
+  if out==9 then tool,rp=4,true
+  elseif out==10 then wtier,rb=4,true
+  else inv[out]=min(99,inv[out]+1) end
+  if tool>=1 and tool<=3 and inv[tool]<=0 then tool=0 end
+  if wtier>=1 and wtier<=3 and inv[wtier+3]<=0 then wtier=0 end
+  return true
+end
+
+function equip_tool(t)
+  if (t<=3 and inv[t]>0) or (t==4 and rp) then tool=t end
+end
+function equip_weapon(t)
+  if (t<=3 and inv[t+3]>0) or (t==4 and rb) then wtier=t end
+end
+
+function add_coins(n)
+  coins=min(255,coins+n)
+end
+
+-- only spends the potion if it'd actually help, so it can't be wasted at
+-- full hp; heals to max rather than a partial amount -- design.md doesn't
+-- pin a heal amount, this is the simplest first-pass choice, not locked
+function use_potion()
+  if inv[8]>0 and hp<maxhp then
+    inv[8]-=1
+    hp=maxhp
+  end
+end
+
 function _init()
   gen_world()
   gen_monsters()
+  gen_chests()
   px,py=spx*8,spy*8
   fx,fy=0,1
-  tool=1 -- equipped tool tier; placeholder until phase 5's real equip slot
-  wtier=1 -- equipped weapon tier; same placeholder pattern as tool
+  tool=1 -- equipped tool tier; player starts owning (see inv below) and wearing tier 1
+  wtier=1 -- equipped weapon tier; same
+  rp,rb=false,false -- runic pick/blade ever crafted (see craft())
+  inv={1,0,0,1,0,0,0,0} -- start owning 1 basic pick + 1 basic blade,
+    -- matching tool/wtier=1 above -- without this the tier-1 crafting
+    -- recipes (which need copper ore, a tier-1-resistance block) would
+    -- be uncraftable from a cold start with nothing equipped to mine it
   hp=10 -- first-pass starting hp (design.md)
   dead=false
   parryt=0
   mat={} -- material counts by id: 1-16 block drops (phase 2), 17-22 monster drops
+  book=false
+  help_on,help_t=false,0 -- see draw_help()'s comment: nothing sets help_on
+    -- true yet, that's phase 7's job once the inventory screen exists
   lavat=0
   camx=mid(0,px+4-64,w*8-128)
   camy=mid(0,py+4-64,h*8-128)
 end
 
 function _update()
+  if help_on then -- frozen while the help overlay is up, same pattern as dead
+    if help_t>0 then help_t-=1
+    elseif any_btnp() then help_on=false end
+    return
+  end
   if dead then return end -- freeze on death; end screen is a later phase's job
   local dx,dy=0,0
   if btn(0) then dx=-1 end
@@ -412,9 +636,10 @@ function _update()
     lavat=0
   end
 
-  -- combat: o tapped = weapon swing (edge-triggered, separate from o
-  -- held's mining above); x tapped = open a parry window
-  if btnp(4) then try_attack() end
+  -- o tapped = open a chest if one's faced, else weapon swing (do_action,
+  -- edge-triggered, separate from o held's mining above); x tapped = open
+  -- a parry window
+  if btnp(4) then do_action() end
   if btnp(5) then parryt=8 end
   parryt=max(0,parryt-1)
 
@@ -422,6 +647,9 @@ function _update()
 end
 
 function _draw()
+  if help_on then camera(0,0) draw_help() return end -- screen-space ui,
+    -- must reset the world camera first or the bezel/text draw offset by
+    -- whatever camx/camy was left at
   cls(0)
   camera(camx,camy)
   local cx0,cy0=cell_xy(camx,camy)
@@ -436,6 +664,10 @@ function _draw()
   end
   for m in all(mon) do
     rectfill(m.x,m.y,m.x+7,m.y+7,mcol[m.typ]) -- placeholder: flat colour square, real sprites are phase 8
+  end
+  for c in all(chest) do
+    rectfill(c.x,c.y,c.x+7,c.y+7,4) -- brown body
+    rectfill(c.x+2,c.y+3,c.x+5,c.y+4,10) -- yellow latch highlight
   end
   rectfill(px,py,px+7,py+7,7) -- player placeholder: white square
 end
