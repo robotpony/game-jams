@@ -33,6 +33,39 @@ function any_btnp()
   return false
 end
 
+-- lib/screen.lua
+function blink(hz)
+  return (time()*hz)%2<1
+end
+
+-- lib/title.lua
+function draw_title_card(name)
+  cls(5)
+  local sw={7,10,11,3,6,8,1,0}
+  for i=0,7 do
+    rectfill(30+i*9,8,34+i*9,14,sw[i+1])
+  end
+  local l1="'26 WARPED GAME JAM"
+  print(l1,64-#l1*2,26,7)
+  print("PRESENTS",48,34,7)
+  print(name,64-#name*2,62,7)
+  if blink(2) then
+    local l2="PRESS X TO START"
+    print(l2,64-#l2*2,104,7)
+  end
+end
+
+-- lib/state.lua
+gs=0
+gsret=0
+function goto_state(ns)
+  gsret=gs
+  gs=ns
+end
+function return_state()
+  gs=gsret
+end
+
 -- world: 128x64 cell map. cell value 0=floor, 1-16=wall block id
 -- (id order matches readme's block tier table: 1-4 tier1, 5-8 tier2,
 -- 9-12 tier3, 13-14 hazard (lava/water), 15-16 special (vein/glowstone))
@@ -249,6 +282,8 @@ function try_mine(tx,ty)
     if mhp<=0 then
       mset(tx,ty,0)
       mat[id]=min(99,(mat[id] or 0)+1)
+      matcount+=1 -- scoring's materials_collected term (design.md), a running
+        -- total distinct from mat[]'s current (crafting-consumable) counts
       if id==15 then add_coins(10) end -- treasure vein: readme's "guaranteed
         -- bonus drop" beyond the normal material, deferred from phase 2
         -- until coins existed to pay it out; first-pass amount
@@ -301,7 +336,8 @@ end
 
 function hpdmg(n)
   hp=max(0,hp-n)
-  if hp<=0 then dead=true end
+  if hp<=0 then gs=4 end -- end screen; was a separate `dead` flag before
+    -- phase 7's real state machine existed to hold this directly
 end
 
 -- parry (x, tapped) opens a short window (parryt, in frames); any monster
@@ -446,12 +482,13 @@ function do_action()
 end
 
 -- help overlay: full-screen, paused, matching game 2's help-screen
--- precedent (bezel border, distinct text colour) per design.md. help_on
--- freezes _update() (see its first line) the same way dead does; nothing
--- sets help_on=true yet since reaching it is "from inventory, once the
--- book is found," and the inventory screen itself is phase 7's job --
--- this phase only builds the overlay and its content, verified by
--- forcing the flag on for a screenshot, not a live in-game trigger.
+-- precedent (bezel border, distinct text colour) per design.md. state
+-- 3 (gs==3), entered via goto_state(3) from either playing or inventory
+-- (design.md's state table) and dismissed with return_state(), which is
+-- exactly lib/state.lua's "resume whichever state opened this overlay"
+-- case -- phase 6 built this as a standalone help_on boolean (game 2's
+-- simpler single-caller pattern) since gs didn't exist as a real state
+-- machine yet; phase 7 folds it into gs now that it does.
 -- monster-drop reference only lists bat wing/wraith essence/warden core:
 -- readme's recipe table has no crafting use for crawler shell/slug
 -- gland/old bone, but they're not dead weight -- design.md's scoring
@@ -571,7 +608,56 @@ function use_potion()
   end
 end
 
-function _init()
+-- inventory screen (gs==2). isel (1-18) is one cursor over a single
+-- combined list: 1-8 are the general item slots (readme's order), 9-18
+-- are recipe[]'s 10 entries in the same order -- one selection+one
+-- action button covers both equip/use and craft, instead of two cursors
+-- or a mode toggle. islab/rlab are display-only short labels; runic
+-- pick/blade have no manual-equip entry at all (see rlab's comment) and
+-- lantern has no action (see draw_inv()'s comment) -- both intentional
+-- scope cuts, not missing features
+islab={"pick1","pick2","pick3","blade1","blade2","blade3","lantern","potion"}
+rlab={"pick1","pick2","pick3","blade1","blade2","blade3",
+  "runic pick","runic blade","lantern","potion"}
+
+-- o (tapped) on the selected entry: items 1-3 equip that pick tier,
+-- 4-6 equip that blade tier, 7 (lantern) is display-only -- no
+-- visibility/fog system exists yet for it to affect (a real gap in the
+-- design, not a phase-7 scope cut -- see plan.md), 8 uses a potion;
+-- recipes (9-18) craft. runic pick/blade have no manual-equip entry:
+-- they auto-equip the instant they're crafted (craft()), and reverting
+-- to a lower tier on purpose to then manually reselect runic is obscure
+-- enough to not need ui for it in a first pass
+function inv_action()
+  if isel<=3 then equip_tool(isel)
+  elseif isel<=6 then equip_weapon(isel-3)
+  elseif isel==8 then use_potion()
+  elseif isel>8 then craft(isel-8)
+  end
+end
+
+function draw_inv()
+  cls(0)
+  for i=1,8 do
+    local y=2+(i-1)*6
+    local eq=(i<=3 and tool==i) or (i>=4 and i<=6 and wtier==i-3)
+    print((isel==i and ">" or " ")..islab[i].." x"..inv[i],2,y,eq and 11 or 7)
+  end
+  for i=1,10 do
+    local y=2+(7+i)*6
+    print((isel==8+i and ">" or " ")..rlab[i],2,y,can_craft(i) and 11 or 5)
+  end
+  print("$"..coins,2,112,10)
+  if book then print("x:help",90,112,11) end
+  print("o:equip/use/craft o+x:close",2,120,6)
+end
+
+-- world/player/run reset, split out of _init() so title->playing (and
+-- end->title->playing again) can re-roll a fresh run without restarting
+-- the cart. _init() itself just boots to the title state (gs==0) and
+-- doesn't call this -- generating a world nobody's pressed start to see
+-- yet would be wasted work every time the cart loads
+function new_game()
   gen_world()
   gen_monsters()
   gen_chests()
@@ -585,24 +671,66 @@ function _init()
     -- recipes (which need copper ore, a tier-1-resistance block) would
     -- be uncraftable from a cold start with nothing equipped to mine it
   hp=10 -- first-pass starting hp (design.md)
-  dead=false
   parryt=0
   mat={} -- material counts by id: 1-16 block drops (phase 2), 17-22 monster drops
   book=false
-  help_on,help_t=false,0 -- see draw_help()'s comment: nothing sets help_on
-    -- true yet, that's phase 7's job once the inventory screen exists
   lavat=0
+  coins=0
+  matcount=0 -- scoring's materials_collected term; distinct from summing
+    -- mat[]'s current counts, since crafting consumes those but a
+    -- material once collected should still count toward score
+  maxdist=0 -- scoring's distance_from_spawn_reached term; furthest the
+    -- player ever got (cells), not just where the run happened to end
+  isel=1 -- inventory screen cursor
   camx=mid(0,px+4-64,w*8-128)
   camy=mid(0,py+4-64,h*8-128)
 end
 
+function _init()
+  gs,gsret=0,0
+  combot=0 -- frames o+x have been held together; see _update()'s combo check
+end
+
 function _update()
-  if help_on then -- frozen while the help overlay is up, same pattern as dead
-    if help_t>0 then help_t-=1
-    elseif any_btnp() then help_on=false end
+  if gs==0 then -- title
+    if any_btnp() then new_game() gs=1 end
     return
   end
-  if dead then return end -- freeze on death; end screen is a later phase's job
+  if gs==3 then -- help; entered via goto_state(3) from playing or inventory
+    if help_t>0 then help_t-=1
+    elseif any_btnp() then return_state() end
+    return
+  end
+  if gs==4 then -- end
+    if any_btnp() then gs=0 end
+    return
+  end
+  -- o+x toggles inventory, checked before either state's own input
+  -- handling so it always takes priority. requires both held together
+  -- for combot frames (not just btnp on either edge): mining (o, held)
+  -- and parry (x, tapped) are both live during playing, so a quick
+  -- mine-then-parry could otherwise false-trigger an edge-based combo
+  -- check the instant x went down while o was already held. a short
+  -- sustained-hold requirement is cheap insurance against that overlap
+  if btn(4) and btn(5) then
+    combot+=1
+    if combot==10 then
+      if gs==1 then gs,isel=2,1 elseif gs==2 then gs=1 end
+      combot=0
+      return
+    end
+  else
+    combot=0
+  end
+  if gs==2 then -- inventory
+    if btnp(2) then isel=max(1,isel-1) end
+    if btnp(3) then isel=min(18,isel+1) end
+    if btnp(4) then inv_action() end
+    if btnp(5) and book then help_t=90 goto_state(3) end
+    return
+  end
+  -- gs==1 (playing) from here down -- every other state already
+  -- returned above
   local dx,dy=0,0
   if btn(0) then dx=-1 end
   if btn(1) then dx=1 end
@@ -644,12 +772,35 @@ function _update()
   parryt=max(0,parryt-1)
 
   for m in all(mon) do upd_mon(m) end
+
+  -- scoring's distance_from_spawn_reached: tracked live as a running max,
+  -- not computed once at death, so it reflects the furthest point reached
+  -- during the run rather than just wherever the player happened to die.
+  -- cell units (not pixels), matching every other distance calc in this
+  -- cart, for the same fixed-point-overflow reason (see mrng's comment)
+  local dcx,dcy=cell_xy(px+4,py+4)
+  local ddx,ddy=dcx-spx,dcy-spy
+  local d=sqrt(ddx*ddx+ddy*ddy)
+  if d>maxdist then maxdist=d end
+end
+
+function draw_end()
+  cls(0)
+  print("you died",44,20,8)
+  print("coins: "..coins,30,50,7)
+  print("distance: "..flr(maxdist),22,58,7)
+  print("score: "..flr(maxdist+coins+matcount),30,66,7) -- design.md's
+    -- score formula, k=j=1 (first-pass weights, not tuned)
+  if blink(2) then print("press any button",26,100,7) end
 end
 
 function _draw()
-  if help_on then camera(0,0) draw_help() return end -- screen-space ui,
+  if gs==0 then draw_title_card("6 DUG DUG DOWN") return end
+  if gs==3 then camera(0,0) draw_help() return end -- screen-space ui,
     -- must reset the world camera first or the bezel/text draw offset by
     -- whatever camx/camy was left at
+  if gs==4 then camera(0,0) draw_end() return end
+  if gs==2 then camera(0,0) draw_inv() return end
   cls(0)
   camera(camx,camy)
   local cx0,cy0=cell_xy(camx,camy)
@@ -670,4 +821,20 @@ function _draw()
     rectfill(c.x+2,c.y+3,c.x+5,c.y+4,10) -- yellow latch highlight
   end
   rectfill(px,py,px+7,py+7,7) -- player placeholder: white square
+  camera(0,0)
+  draw_hud()
+end
+
+-- bottom-strip hud, y=112-127 per design.md's screen layout, matching
+-- game 2's convention of drawing its own opaque panel over whatever the
+-- cave view left behind there rather than clipping the world render to
+-- y=0-111 -- simpler than adding clip() calls for a jam-scope cart.
+-- tool/weapon show as bare tier numbers (t2/w1) rather than icons, same
+-- placeholder treatment blocks/monsters get; real icons are phase 8
+function draw_hud()
+  rectfill(0,112,127,127,1)
+  line(0,111,127,111,6)
+  print("hp:"..hp,2,116,7)
+  print("$"..coins,44,116,10)
+  print("t"..tool.."/w"..wtier,80,116,7)
 end
