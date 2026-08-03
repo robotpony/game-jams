@@ -1,0 +1,68 @@
+# Game 6 sprite sheet slot assignments.
+# Slot = block id (matches 6.p8's bcol/blocktier ordering) for 1-16.
+# 17-22 = monster type (matches 6.p8's mcol ordering).
+# 23-30 = player torso, 8 fully distinct directions (no flip at draw time):
+#   23 down, 24 up, 25 right, 26 left, 27 down-right, 28 down-left, 29 up-right, 30 up-left
+#   (torso occupies rows 0-5 incl. hip; rows 6-7 reserved for the legs layer below)
+# 31-42 = chest and item icons:
+#   31 chest, 32-34 pick tiers 1-3, 35-37 blade tiers 1-3, 38 lantern, 39 health potion,
+#   40 book, 41 runic pick (tier 4), 42 runic blade (tier 4)
+
+1  defs/g6_loose_dirt.txt
+2  defs/g6_clay.txt
+3  defs/g6_copper_ore.txt
+4  defs/g6_rubble.txt
+5  defs/g6_packed_stone.txt
+6  defs/g6_iron_ore.txt
+7  defs/g6_mossy_rock.txt
+8  defs/g6_flint.txt
+9  defs/g6_dense_rock.txt
+10 defs/g6_gold_ore.txt
+11 defs/g6_crystal_ore.txt
+12 defs/g6_ancient_stone.txt
+13 defs/g6_lava.txt
+14 defs/g6_deep_water.txt
+15 defs/g6_treasure_vein.txt
+16 defs/g6_glowstone.txt
+
+17 defs/g6_cave_bat.txt
+18 defs/g6_rock_crawler.txt
+19 defs/g6_spitting_slug.txt
+20 defs/g6_tunnel_wraith.txt
+21 defs/g6_bone_archer.txt
+22 defs/g6_cave_warden.txt
+
+23 defs/g6_player_down.txt
+24 defs/g6_player_up.txt
+25 defs/g6_player_right.txt
+26 defs/g6_player_left.txt
+27 defs/g6_player_down_right.txt
+28 defs/g6_player_down_left.txt
+29 defs/g6_player_up_right.txt
+30 defs/g6_player_up_left.txt
+
+31 defs/g6_chest.txt
+32 defs/g6_basic_pick.txt
+33 defs/g6_mid_pick.txt
+34 defs/g6_advanced_pick.txt
+35 defs/g6_basic_blade.txt
+36 defs/g6_mid_blade.txt
+37 defs/g6_advanced_blade.txt
+38 defs/g6_lantern.txt
+39 defs/g6_health_potion.txt
+40 defs/g6_book.txt
+41 defs/g6_runic_pick.txt
+42 defs/g6_runic_blade.txt
+
+# 43-47 = shared player legs layer, composited under the torso at the same
+# px,py (rows 0-5 blank/transparent, content only in rows 6-7):
+#   43 idle, 44-45 vertical-stride cycle (up/down + all 4 diagonals, fy~=0),
+#   46-47 horizontal-stride cycle (left/right only, fy==0)
+43 defs/g6_legs_idle.txt
+44 defs/g6_legs_v1.txt
+45 defs/g6_legs_v2.txt
+46 defs/g6_legs_h1.txt
+47 defs/g6_legs_h2.txt
+
+# 48 = opened-chest sprite (permanent once a chest is opened, see open_chest())
+48 defs/g6_chest_open.txt
