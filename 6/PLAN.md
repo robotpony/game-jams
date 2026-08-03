@@ -93,7 +93,8 @@ Built in 3 checkpoints (state machine + title/end, then HUD, then the Inventory 
 - [ ] Apply final colour palette once the visual-style conversation resolves it (see DESIGN.md's Palette table)
 - [ ] Player, monster (6 types), block (16 types), chest, and item sprites
 - [ ] SFX for the event list README's Sound section needs, once decided
-- [ ] Verify: play a full round with sound on, confirm every SFX fires at its correct trigger
+- [ ] **Visibility/fog radius** (found missing during Phase 7, not originally on this list): README's Game overview and DESIGN.md's Visibility section describe this as a core mechanic (a lit radius around the player, Glowstone/Lantern extending it, fog beyond it), and README's own Open Questions already discusses the fog dither's *cost* — but no phase from 0 through 7 actually built the base radius/fog-cull mechanic itself, only assumed it would exist by the time Open Questions was written. Needs: a lit-radius check gating what's drawn (blocks/monsters/chests beyond it skipped), Glowstone/Lantern extending it per `radius=max(base,glowstone_radius,lantern_radius)` (DESIGN.md), and only then the dither-vs-hard-cutoff cost question the existing Open Question already anticipates.
+- [ ] Verify: play a full round with sound on, confirm every SFX fires at its correct trigger; confirm the visibility radius actually culls rendering and that Glowstone/Lantern extend it
 
 ## Phase 9: Token & performance check
 

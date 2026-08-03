@@ -174,3 +174,4 @@ Blocks share a family base colour and, where the material actually matters, get 
 
 - **Tuning numbers**: DESIGN.md proposes first-pass values for block resistance/HP, tool power, weapon damage, and player/monster HP. Treat these as a starting point for playtesting, not locked.
 - **Fog dither cost**: the soft-edged dither at the visibility boundary costs more per-frame draw work than a hard cutoff; confirm it fits Phase 9's token/performance budget once measured, simplify to a hard cutoff if it doesn't.
+- **Visibility/fog radius isn't built yet**: found while implementing Phase 7 (screens & flow) that no phase from 0 through 7 actually built the lit-radius/fog mechanic this section and DESIGN.md's Visibility section both describe as core — only the dither-cost question above got tracked, not the base mechanic it's a cost question *about*. Now on Phase 8's checklist (`PLAN.md`).
