@@ -2,8 +2,6 @@
 
 A procedurally generated top-down cave-mining RPG with crafting and combat. Follows the format in [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
-**Status: not yet built.**
-
 Unlike games 1-5, this one doesn't use the Atari-2600-via-Pico-8 look. The palette leans on Pico-8's real colour names directly and matches them semantically to what each thing is (gold is yellow, water is blue); see Tile / sprite visuals below.
 
 ## Game overview
@@ -173,5 +171,3 @@ Blocks share a family base colour and, where the material actually matters, get 
 ## Open Questions
 
 - **Tuning numbers**: DESIGN.md proposes first-pass values for block resistance/HP, tool power, weapon damage, and player/monster HP. Treat these as a starting point for playtesting, not locked.
-- **Fog dither cost**: the soft-edged dither at the visibility boundary costs more per-frame draw work than a hard cutoff; confirm it fits Phase 9's token/performance budget once measured, simplify to a hard cutoff if it doesn't.
-- **Visibility/fog radius isn't built yet**: found while implementing Phase 7 (screens & flow) that no phase from 0 through 7 actually built the lit-radius/fog mechanic this section and DESIGN.md's Visibility section both describe as core — only the dither-cost question above got tracked, not the base mechanic it's a cost question *about*. Now on Phase 8's checklist (`PLAN.md`).

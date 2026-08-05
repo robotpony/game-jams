@@ -306,6 +306,7 @@ function try_mine(tx,ty)
       mset(tx,ty,0)
       mat[id]=min(99,(mat[id] or 0)+1)
       sfx(10) -- material pickup
+      pushrecent(id)
       matcount+=1 -- scoring's materials_collected term (design.md), a running
         -- total distinct from mat[]'s current (crafting-consumable) counts
       if id==15 then add_coins(10) end -- treasure vein: readme's "guaranteed
@@ -341,12 +342,25 @@ guardthresh=12 -- frames x must be continuously held before guard engages
   -- (dmg_player checks xhold>=this) -- comfortably past a normal tap's
   -- length so a quick attack-tap never accidentally reads as a guard
 
--- visibility radii (cells), first-pass per design.md's "3-4 tiles" base
--- guess and its no-stacking max() rule (glowstone/lantern each extend the
--- base, don't add to it). lanternr>glowr since readme's recipe table
--- crafts a lantern from 2 glowstone -- the upgrade should out-light a
--- single glowstone, not match it
-baser,glowr,lanternr=4,6,7
+-- visibility radii (cells). bumped from the original 4/6/7 after playtest
+-- feedback that the hard-cutoff fog read as unclear/glitchy rather than
+-- as darkness -- see the dither patterns below, which address the
+-- clarity problem directly; the size itself was a separate "feels too
+-- small" complaint, bumped once more (6/8/9 -> 7/9/10) after playtesting
+-- the dithered version. no-stacking max() rule unchanged (glowstone/
+-- lantern each extend the base, don't add to it). lanternr>glowr since
+-- readme's recipe table crafts a lantern from 2 glowstone -- the upgrade
+-- should out-light a single glowstone, not match it
+baser,glowr,lanternr=7,9,10
+-- fog dither patterns (fillp, transparency mode via the .1 suffix -- see
+-- pico-8's fillp manual entry): more 1-bits means more transparent
+-- (verified empirically, not assumed -- an earlier symmetric 50/50 test
+-- pattern couldn't distinguish direction). patsparse is mostly-1s (still
+-- see-through, light darkening) for the ring just inside the edge;
+-- patdense is mostly-0s (mostly opaque) for the outermost ring, so the
+-- edge reads as fading vision rather than the world abruptly stopping
+patsparse=0b1110111011101110.1
+patdense=0b0001000000010000.1
 
 -- player sprite slot (23-30) from facing fx,fy (each -1/0/1, never both 0
 -- once fx,fy=0,1 has run once in new_game()): key=(fx+1)+(fy+1)*3 gives
@@ -573,6 +587,7 @@ function loot()
     lootkind=1
     lootid=id
     sfx(10) -- material pickup
+    pushrecent(id)
   end
 end
 
@@ -727,6 +742,16 @@ function add_coins(n)
   sfx(9) -- coin pickup
 end
 
+-- records a block-material pickup for the hud's recency feed, newest
+-- first, capped at 4 distinct ids -- del() first so re-picking the same
+-- material moves it to front instead of duplicating, since 4 copies of
+-- "copper" is less useful to see than 4 different recent materials
+function pushrecent(id)
+  del(recentmat,id)
+  add(recentmat,id,1)
+  if #recentmat>4 then deli(recentmat,5) end
+end
+
 -- only spends the potion if it'd actually help, so it can't be wasted at
 -- full hp; heals to max rather than a partial amount -- design.md doesn't
 -- pin a heal amount, this is the simplest first-pass choice, not locked
@@ -809,6 +834,9 @@ function new_game()
   hp=maxhp -- start full, tracks maxhp rather than a separate literal
   xhold=0 -- frames x has been continuously held; see try_attack/dmg_player
   mat={} -- material counts by id: 1-16 block drops (phase 2), 17-22 monster drops
+  recentmat={} -- last 4 distinct block-material ids gained, newest first;
+    -- see pushrecent(), drawn on the hud. monster drops (17-22) have no
+    -- icon sprite of their own, so this feed is block materials only
   book=false
   lavat=0
   rtick=0 -- frames spent facing a too-weak-tool block, for block_resist's rate limit
@@ -826,6 +854,11 @@ end
 function _init()
   gs,gsret=0,0
   combot=0 -- frames o+x have been held together; see _update()'s combo check
+  combolock=false -- true right after the combo fires until a button is
+    -- released, so a sustained hold can't retrigger it 10 frames later
+    -- (real bug found live: opening inventory then not releasing fast
+    -- enough re-counted to 10 and closed it right back, reading as "the
+    -- inventory screen disappears immediately")
 end
 
 function _update()
@@ -860,16 +893,24 @@ function _update()
   -- and attack (x, tapped) are both live during playing, so a quick
   -- mine-then-attack could otherwise false-trigger an edge-based combo
   -- check the instant x went down while o was already held. a short
-  -- sustained-hold requirement is cheap insurance against that overlap
+  -- sustained-hold requirement is cheap insurance against that overlap.
+  -- combolock gates re-counting once the hold has already fired once --
+  -- without it, a hold that outlasts the 10-frame window just keeps
+  -- counting past 10, hits it again ~10 frames later, and toggles right
+  -- back (found live: inventory opened then closed itself almost
+  -- immediately, since letting go of both buttons the instant it opens
+  -- isn't realistic). only a release re-arms it.
   if btn(4) and btn(5) then
-    combot+=1
-    if combot==10 then
-      if gs==1 then gs,isel=2,1 elseif gs==2 then gs=1 end
-      combot=0
-      return
+    if not combolock then
+      combot+=1
+      if combot==10 then
+        if gs==1 then gs,isel=2,1 elseif gs==2 then gs=1 end
+        combot,combolock=0,true
+        return
+      end
     end
   else
-    combot=0
+    combot,combolock=0,false
   end
   if gs==2 then -- inventory
     if btnp(2) then isel=max(1,isel-1) end
@@ -1004,16 +1045,19 @@ function _draw()
   local cx0,cy0=cell_xy(camx,camy)
   local cx1,cy1=cell_xy(camx+127,camy+127)
   -- fog: litr is this frame's lit radius (cells); pcx/pcy is the player's
-  -- own cell, both reused below to gate monsters/chests too. hard cutoff
-  -- for now, not design.md's dithered edge -- that's deferred to after
-  -- phase 9's token/perf count per the open question it's already filed
-  -- under, rather than guessed at before there's a budget to check it against
+  -- own cell, both reused below to gate monsters/chests too. the outer 2
+  -- rings of the lit area get a dithered dark overlay (see sparsec/densec
+  -- below) instead of cutting straight to black, so the edge reads as
+  -- fading vision rather than the world abruptly stopping -- blocks only
+  -- for now (see scope note below), monsters/chests still hard-cut at litr
   local litr=visr()
   local pcx,pcy=cell_xy(px+4,py+4)
+  local sparsec,densec={},{}
   for cx=cx0,cx1 do
     for cy=cy0,cy1 do
       local dx,dy=cx-pcx,cy-pcy
-      if dx*dx+dy*dy<=litr*litr then
+      local d2=dx*dx+dy*dy
+      if d2<=litr*litr then
         local t=mget(cx,cy)
         if t>0 then
           local tier=blocktier(t)
@@ -1030,9 +1074,24 @@ function _draw()
             spr(t,cx*8,cy*8)
           end
         end
+        -- band the cell for the dither overlay passes below, outermost
+        -- ring first since it also satisfies the sparse ring's own check
+        if d2>(litr-1)*(litr-1) then add(densec,{cx,cy})
+        elseif d2>(litr-2)*(litr-2) then add(sparsec,{cx,cy}) end
       end
     end
   end
+  -- one fillp() set per band, not per cell -- pico-8's pattern state is
+  -- global and meant to be set once per region, so this is 2 pattern
+  -- switches total regardless of how many cells are in each band, not
+  -- 2-per-cell. scope cut: blocks only, not monsters/chests -- extending
+  -- this to them is straightforward (same band lists, keyed by pixel
+  -- position instead of cell) but out of scope for this pass
+  fillp(patsparse)
+  for c in all(sparsec) do rectfill(c[1]*8,c[2]*8,c[1]*8+7,c[2]*8+7,0) end
+  fillp(patdense)
+  for c in all(densec) do rectfill(c[1]*8,c[2]*8,c[1]*8+7,c[2]*8+7,0) end
+  fillp()
   for m in all(mon) do
     -- cell-space distance, not raw pixels -- squaring raw pixel deltas
     -- overflows pico-8's fixed-point range past ~181px on this map (see
@@ -1086,16 +1145,35 @@ end
 -- game 2's convention of drawing its own opaque panel over whatever the
 -- cave view left behind there rather than clipping the world render to
 -- y=0-111 -- simpler than adding clip() calls for a jam-scope cart.
+-- two real rows now (was one cramped row plus ~30px of unused space):
+-- row 1 (y=113) is status text, row 2 (y=120) is an icon strip -- tool
+-- and weapon pinned first, then recentmat's up-to-4-slot recency feed.
 -- equip icons: tool slot is 31+tier for 1-3, 41 for runic (tier 4);
 -- weapon slot is 34+tier for 1-3, 42 for runic -- same tier-4 fallback
--- toolpow/wpow already need, see their comments
+-- toolpow/wpow already need, see their comments. guarded by tool>0/
+-- wtier>0 now -- found live while redesigning this: craft()'s "clear a
+-- now-unowned equip slot back to 0" path (see craft's own comment) makes
+-- tool==0/wtier==0 a real reachable state, and 31+0/34+0 are sprite
+-- slots 31/34, which aren't equip icons at all (31 is the closed-chest
+-- sprite) -- the old one-row hud would've silently shown a chest icon
+-- as your "equipped tool" in that state. drawing nothing is unambiguous
+-- and needs no new art
 function draw_hud()
   rectfill(0,112,127,127,1)
   line(0,111,127,111,6)
-  print("hp:"..hp,2,116,7)
-  print("$"..coins,44,116,10)
-  spr(tool<4 and 31+tool or 41,80,116)
-  spr(wtier<4 and 34+wtier or 42,90,116)
+  print("hp:"..hp,2,113,7)
+  print("$"..coins,44,113,10)
+  print("o+x:inv",96,113,6) -- persistent control hint -- the combolock
+    -- bug (see _update()'s comment) proved this gesture is genuinely
+    -- easy to give up on discovering without one
+  if tool>0 then spr(tool<4 and 31+tool or 41,2,120) end
+  if wtier>0 then spr(wtier<4 and 34+wtier or 42,11,120) end
+  for i=1,#recentmat do
+    local id=recentmat[i]
+    local x=22+(i-1)*16
+    spr(id,x,120)
+    print(mat[id] or 0,x+9,122,7)
+  end
 end
 
 __gfx__

@@ -11,12 +11,14 @@ y=0
   |  cave view: scrolling camera follows the player, fog beyond
   |  the visibility radius, blocks/monsters/chests within it
 y=111
-y=112   HUD line (16px: HP | coins | equipped tool/weapon icons)
+y=112   HUD row 1 (y=113): HP | coins | o+x:inv control hint
+y=120   HUD row 2 (y=120): equipped tool/weapon icons, then a 4-slot
+        recency feed of recently-gained materials
 y=127
 ```
 
 - Cave view: y=0-111, camera centred on the player, clamped at the world's edges (same clamping behaviour as game 2's shaft camera and game 5's vertical camera).
-- HUD: y=112-127, matching the bottom-strip convention games 1, 2, and 5 already use.
+- HUD: y=112-127, matching the bottom-strip convention games 1, 2, and 5 already use. Sketched here as one line pre-implementation; built as two rows after playtest feedback that a single row wasted space and gave no inventory visibility or control hint — see `6/CLAUDE.md`'s HUD redesign section for the as-built version.
 
 Inventory overlay: full-screen, paused. 8 general item-type slots plus the tool-equip and weapon-equip slots, and a crafting sub-area (recipe list, craftable-now highlighted based on current materials). Exact layout not sketched yet, depends on the visual style conversation.
 
@@ -135,7 +137,9 @@ Monster HP/damage, first-pass, scaling with the difficulty ladder from README's 
 | Bone Archer | 10 | 3 |
 | Cave Warden | 25 | 3 |
 
-**Visibility** — A radius (in tiles, tune once playable, starting guess 3-4 tiles) around the player is fully lit; beyond it, blocks/monsters/chests aren't drawn. The lit/unlit boundary itself dithers rather than cutting sharply (a chosen visual treatment, not just "nothing drawn" — costs more per-frame draw work than a hard cutoff, budget for it in Phase 9's token check). Glowstone blocks and an equipped Lantern each extend the radius while the player is near/holding one; no stacking, `radius = max(base, glowstone_radius, lantern_radius)` when both are in effect at once, simpler than tuning an additive bonus pair and avoids the fog mechanic getting trivialized by parking next to a Glowstone with a Lantern equipped.
+**Visibility** — A radius (in tiles) around the player is fully lit; beyond it, blocks/monsters/chests aren't drawn. The lit/unlit boundary dithers rather than cutting sharply (a chosen visual treatment, not just "nothing drawn"). Glowstone blocks and an equipped Lantern each extend the radius while the player is near/holding one; no stacking, `radius = max(base, glowstone_radius, lantern_radius)` when both are in effect at once, simpler than tuning an additive bonus pair and avoids the fog mechanic getting trivialized by parking next to a Glowstone with a Lantern equipped.
+
+**Revision history**: the starting guess here was 3-4 tiles with the dither's per-frame cost flagged as something to confirm against Phase 9's token/perf budget before committing to it, hard-cutoff as the fallback if it didn't fit. Built and playtested in that order (hard cutoff first, since Phase 9 hadn't run) — direct feedback said the hard cutoff read as unclear/glitchy rather than as darkness, and separately that the radius felt small. Building the dither turned up that Pico-8's `fillp` transparency mode makes a real per-pixel dither *cheap* (one extra `rectfill` per outer-band cell, no new art), not expensive — so it shipped without waiting on Phase 9 after all, reversing the original cost assumption. Radius went through two live-feedback bumps: 4/6/7 (base/glowstone/lantern) → 6/8/9 → 7/9/10. See `6/CLAUDE.md`'s Visibility/fog radius section for the full as-built mechanics (the `patsparse`/`patdense` fillp patterns, the `glow[]` list, etc.).
 
 **Chests** — Placed during world generation at a modest rate (tune once playable), not a block type, walked up to and opened with an interact input (instant, no timed search). Loot table: weighted toward common materials, a smaller chance of a Health Potion, a small chance of the Book (skipped once already found).
 
@@ -149,4 +153,6 @@ No win condition; the run ends when player HP reaches 0 (see README's Game over 
 
 ## Token budget
 
-This is the most system-dense game in the jam so far: procedural cave generation, 16 block types with their own resistance/HP pairs, 6 monsters each with distinct AI (melee vs ranged) and drops, an 8-type inventory plus 2 equip slots, 8 crafting recipes, chests with a loot table, a visibility/fog system, and a full help-overlay reference screen, all inside the same ~8,192-token budget the smaller games in this jam already found tight. Phase 0 builds the `lib/` primitives this game actually needs (state machine, collision, map queries, seeded RNG) before Phase 1 starts, rather than assuming they're already free; their token cost still counts against this game's budget the same as inline code would. Expect this to need real trimming once actual token counts come in during Phase 8 (or possibly earlier); treat every "first-pass" number above as something to simplify, not just retune, if the budget doesn't fit.
+This is the most system-dense game in the jam so far: procedural cave generation, 16 block types with their own resistance/HP pairs, 6 monsters each with distinct AI (melee vs ranged) and drops, an 8-type inventory plus 2 equip slots, 8 crafting recipes, chests with a loot table, a visibility/fog system, and a full help-overlay reference screen, all inside the same ~8,192-token budget the smaller games in this jam already found tight. Phase 0 builds the `lib/` primitives this game actually needs (state machine, collision, map queries, seeded RNG) before Phase 1 starts, rather than assuming they're already free; their token cost still counts against this game's budget the same as inline code would.
+
+**Resolved (Phase 9)**: the budget concern here didn't pan out — final count is 4,357/8,192 (53%), measured directly from Pico-8's own editor rather than estimated. No feature cuts or simplification passes were needed anywhere in Phases 0-8 to fit, including everything added after this note was written (fog dither, all 16 SFX, HUD rework, the mine/attack/guard button remap). Kept here as a record that "expect this to need real trimming" was a reasonable prior given no measurement existed yet, not a claim that turned out true.
