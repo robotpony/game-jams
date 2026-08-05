@@ -1,0 +1,7 @@
+# crafting success: ascending 3-note run. organ wave (warmer/rounder
+# than coin_pickup's pulse) so the two ascending sounds don't read as
+# the same event despite the similar shape
+speed: 5
+32 organ 5 none
+36 organ 5 none
+40 organ 6 none

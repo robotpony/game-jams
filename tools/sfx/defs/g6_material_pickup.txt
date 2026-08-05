@@ -1,0 +1,7 @@
+# material pickup: soft, short tick. single quiet triangle note --
+# deliberately the plainest sound in the set, since this is the single
+# most frequent event in the game (every mined block, every kill, every
+# chest roll can trigger it) and shouldn't compete with mining_tick/
+# block_break for attention
+speed: 6
+30 triangle 2 none

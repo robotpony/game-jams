@@ -1,0 +1,9 @@
+# book find: celebratory major-chord arpeggio, deliberately echoing game
+# 2's terminal-found sting (readme's explicit ask) -- this is that sound
+# verbatim, decoded from 2/2.p8 slot 6 via sfx_tool.py decode, not a
+# from-scratch guess at "sounds similar"
+speed: 2
+24 square 5 none
+28 square 5 none
+31 square 5 none
+36 square 6 none

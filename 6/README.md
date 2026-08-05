@@ -60,8 +60,8 @@ Ancient Stone gates a true end-game tier: Runic Pick and Runic Blade, tool/weapo
 
 ## Player
 
-- Moves in 8 directions (4 cardinal + 4 diagonal) at a single fixed speed; no separate walk/run modes. Pico-8 only gives this game 2 action buttons (O and X) once mine/attack/interact/parry/inventory are mapped (see Controls below), so there's no button left for a run modifier, and a fixed speed is simpler than a chord for it. Facing persists as whichever of the 8 directions the player last moved in, including while standing still; it determines which adjacent tile mining targets and which direction a melee swing covers.
-- Combat: swing the equipped weapon to attack, parry to defend (a timed deflect, not a passive block). No shield item.
+- Moves in 8 directions (4 cardinal + 4 diagonal) at a single fixed speed; no separate walk/run modes. Pico-8 only gives this game 2 action buttons, one per equipped tool (O for the mining tool, X for the weapon) once mine/interact/attack/guard/inventory are mapped (see DESIGN.md's Controls table), so there's no button left for a run modifier, and a fixed speed is simpler than a chord for it. Facing persists as whichever of the 8 directions the player last moved in, including while standing still; it determines which adjacent tile mining targets and which direction a melee swing covers.
+- Combat: tap the weapon button to swing, hold it to guard (blocks damage for as long as it's held).
 - Visibility is limited to a radius around the player; a Glowstone block or an equipped Lantern extends it.
 - Resources:
   - HP (starting value and damage amounts are first-pass, see DESIGN.md, subject to playtesting).
@@ -122,9 +122,9 @@ Each monster drops its own material on death, not generic block material, so com
 | Block break | A bigger crunch/crumble, one-shot layered on top of the last tick |
 | Block resists (tool too weak) | Dull, unpitched thud, distinct from a mining tick so "this tool can't scratch it" reads immediately, no visual needed |
 | Sword swing | Quick whoosh |
-| Parry success | Bright metallic ring |
+| Guard blocks a hit | Bright metallic ring |
 | Player hit taken | Descending buzz |
-| Monster hit taken | Short percussive impact, lower-pitched than parry's ring so the two don't read as the same event |
+| Monster hit taken | Short percussive impact, lower-pitched than guard's ring so the two don't read as the same event |
 | Melee monster attack | Low growl/thump on windup |
 | Ranged monster attack (spit/arrow launch) | Sharp hiss/twang, clearly distinct from melee's thump |
 | Coin pickup | Bright ascending chime |

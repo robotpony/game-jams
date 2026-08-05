@@ -1,0 +1,8 @@
+# chest open: creak plus a short rising flourish. two parts in one sfx
+# slot -- a low noise-wave creak with a slide (the hinge), then a
+# 3-note pulse-wave ascent (the flourish)
+speed: 5
+10 noise 3 slide
+30 pulse 4 none
+34 pulse 5 none
+38 pulse 6 none

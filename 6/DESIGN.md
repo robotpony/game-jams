@@ -64,18 +64,20 @@ Black (0) and a couple of other indices (e.g. white 7 doubling as an outline col
 
 ## Core system design
 
-**Controls** — Pico-8 gives this game 4 direction buttons plus 2 action buttons (O/Z, X), and it needs more distinct actions than that (mine, attack, parry, interact, inventory-toggle), so most of the mapping is context-sensitive rather than one-button-one-action:
+**Controls** — Pico-8 gives this game 4 direction buttons plus 2 action buttons (O/Z, X), and it needs more distinct actions than that (mine, attack, guard, interact, inventory-toggle). Each action button is dedicated to one equipped tool rather than splitting by hold-vs-tap across both: O is the mining tool (mine or interact, chosen by what's faced, which can never be ambiguous since a block and a chest can't occupy the same cell), X is the weapon (attack or guard, chosen by hold duration):
 
 | Input | Effect |
 | ----- | ------ |
 | Directions | Move (8-way) and set facing (see Mining below) |
 | O, held, facing a block | Mine (damage-over-time while resistance is met) |
-| O, tapped, facing a monster in melee range | Attack (weapon swing) |
 | O, tapped, facing a chest | Interact (open) |
-| X, tapped | Parry (timed window, see Combat below) |
+| X, tapped | Attack (weapon swing, fires immediately on press) |
+| X, held past a short threshold | Guard (blocks damage for as long as it's held) |
 | O+X, held together | Toggle Inventory overlay |
 
 No dedicated run button: with both action buttons already spoken for, movement is a single fixed speed rather than adding a walk/run chord (see README's Player section). "Any button" scene transitions (Title/End/Help-dismiss) aren't gameplay-sensitive, so they're unaffected by this mapping. The Help overlay's controls reference (see Chests & help) should show this table.
+
+**Revision history**: originally O carried mine (held) *and* attack/interact (tapped), with a separate tap-triggered timed parry on X. Live playtesting during the Phase 4-7 build (see 6/CLAUDE.md's Combat section) found that mining and attack shared O ambiguously: `btn()` (held) and `btnp()` (press-edge) are both true on the very first frame of any press, so mining a block and swinging at a monster could fire from the same input. Moved to the one-button-one-tool split above, and replaced the timed parry with a hold-to-guard on X (attack fires on the press edge regardless of how long the hold that follows turns out to be; guard only reads as active once the hold has run longer than the attack's own swing window, so the two never contend for the same frame the way mine/attack used to).
 
 **World generation** — A single bounded cave, generated once at game start, stored in Pico-8's native map (128×64 cells), in two passes, neither of which uses a continuous noise function:
 
@@ -118,7 +120,7 @@ A higher tool tier both unlocks harder blocks (via resistance) and mines faster 
 | 3 (Advanced Blade) | 7 |
 | 4 (Runic Blade) | 12 |
 
-Parry is a timed input (a short window, tune once playable, starting guess ~6-10 frames) that fully negates incoming damage from an attack landing during it, distinct from a passive block; whiffing a parry outside its window does nothing (no penalty beyond taking the hit normally). Applies uniformly to melee and ranged damage, including Spitting Slug's spit, Bone Archer's arrows, and Cave Warden's ranged mode, not just melee swings: the check is "did damage land during the window," not attack type.
+Guard (see Controls' revision history) fully negates incoming damage for as long as X is held past its engage threshold (first-pass guess ~12 frames), a passive block rather than a timed deflect: there's no whiff state, holding either is or isn't blocking on any given frame. Applies uniformly to melee and ranged damage, including Spitting Slug's spit, Bone Archer's arrows, and Cave Warden's ranged mode, not just melee swings: the check is "is guard active right now," not attack type. Superseded the original timed-parry design (fully negate damage landing within a short reactive window after a tap); replaced because parry and attack couldn't both live on a tap-vs-hold split of the same button as mine and attack once did on O.
 
 Player HP: starts at 10 (first-pass, tune once playable).
 

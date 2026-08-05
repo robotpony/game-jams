@@ -1,0 +1,6 @@
+# mining tick: short percussive knock. kept very short (2 notes, fast
+# speed) since it repeats every 6 frames while o is held -- a longer
+# sound would overlap/stack badly at that rate
+speed: 4
+18 noise 4 none
+14 noise 2 none

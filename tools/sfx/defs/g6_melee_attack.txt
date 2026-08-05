@@ -1,0 +1,7 @@
+# melee monster attack: low growl/thump. very low pitch, noise wave,
+# short -- README specs this as playing "on windup," but no phase built
+# a separate windup/telegraph state for monster ai, so this fires at the
+# moment the attack actually lands instead (see 6/PLAN.md's SFX addendum)
+speed: 8
+6 noise 5 none
+4 noise 3 none

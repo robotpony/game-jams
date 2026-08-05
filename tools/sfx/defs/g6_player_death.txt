@@ -1,0 +1,7 @@
+# player death: descending 3-note run, mirroring game 3's loss stinger
+# (readme's explicit ask) -- this is that sound verbatim, decoded from
+# 3/3.p8 slot 10 via sfx_tool.py decode, not a from-scratch guess
+speed: 12
+43 triangle 6 none
+40 triangle 6 none
+36 triangle 6 none

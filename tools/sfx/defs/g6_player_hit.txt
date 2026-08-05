@@ -1,0 +1,7 @@
+# player hit taken: descending buzz. shape reused near-verbatim from
+# 1/1.p8 slot 0 (a proven real descending-square sound), not guessed blind.
+speed: 10
+36 square 5 none
+33 square 4 none
+31 square 3 none
+28 square 1 none

@@ -1,0 +1,6 @@
+# block resists (tool too weak): dull, unpitched thud -- flat pitch (no
+# movement between notes) is what reads as "unpitched" here, distinct
+# from mining_tick's higher, more percussive knock
+speed: 8
+8 noise 5 none
+8 noise 2 none

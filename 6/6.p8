@@ -74,11 +74,13 @@ h=64
 spd=1.5
 
 -- sprite slot == block id (1-16), monster sprite slot == 16+typ, so no
--- id->colour lookup is needed once phase 8's spr() calls replace the old
--- flat-colour rectfill placeholders (see tools/sprites/manifests/g6.txt
+-- id->colour lookup table is needed (see tools/sprites/manifests/g6.txt
 -- for the full slot assignment)
 
 function gen_world()
+  glow={} -- glowstone cell coords, collected during pass 2 below; scanned
+    -- each _draw() frame by visr() to extend the lit radius, instead of a
+    -- per-frame full-map scan
   -- pass 1: cellular automata carves floor/wall shape (no continuous
   -- noise function; see design.md's world generation for why). double-
   -- buffered: each iteration computes into buf[][] and only copies back to
@@ -137,7 +139,9 @@ function gen_world()
   for cx=0,w-1 do
     for cy=0,h-1 do
       if mget(cx,cy)==1 then
-        mset(cx,cy,pick_block(cx,cy))
+        local id=pick_block(cx,cy)
+        mset(cx,cy,id)
+        if id==16 then add(glow,{cx,cy}) end
       end
     end
   end
@@ -279,16 +283,29 @@ toolpow={2,4,7,12} -- damage per mining tick, indexed by equipped tool tier
 function try_mine(tx,ty)
   local id=mget(tx,ty)
   local tier=id~=0 and blocktier(id)
-  if not tier or tool<tier then mcx=nil return end
+  -- resist feedback (sfx slot 4) is rate-limited on its own counter, not
+  -- mtick -- mtick only starts once a mineable target is actually set
+  -- below, which never happens on this branch
+  if tier and tool<tier then
+    mcx=nil
+    rtick+=1
+    if rtick%15==1 then sfx(4) end
+    return
+  end
+  rtick=0
+  if not tier then mcx=nil return end
   if mcx~=tx or mcy~=ty then
     mcx,mcy,minehp,mtick=tx,ty,hpmax[tier],0
   end
   mtick+=1
   if mtick%6==0 then
+    sfx(2) -- mining tick
     minehp-=toolpow[tool]
     if minehp<=0 then
+      sfx(3) -- block break
       mset(tx,ty,0)
       mat[id]=min(99,(mat[id] or 0)+1)
+      sfx(10) -- material pickup
       matcount+=1 -- scoring's materials_collected term (design.md), a running
         -- total distinct from mat[]'s current (crafting-consumable) counts
       if id==15 then add_coins(10) end -- treasure vein: readme's "guaranteed
@@ -303,7 +320,9 @@ end
 -- (bat,crawler,slug,wraith,archer,warden); all first-pass per design.md
 mhp={4,10,8,12,10,25}
 mdmg={1,2,2,2,3,3}
-mspd={0.8,0.35,0.25,0.9,0.4,0.5}
+mspd={0.6,0.26,0.19,0.68,0.3,0.38} -- 25% slower than the original first-pass
+  -- values ({0.8,0.35,0.25,0.9,0.4,0.5}) -- playtest feedback (see 6/PLAN.md's
+  -- phase 4 verify note): monsters read as uniformly too fast
 mrng={0,0,3.5,0,5.5,3.5} -- 0=melee(contact only), >0=ranged engage range
   -- in cells, not pixels: pico-8's fixed-point numbers overflow squaring
   -- anything past ~181 (16.16 format's ~32767 ceiling), and this map is
@@ -312,8 +331,22 @@ mrng={0,0,3.5,0,5.5,3.5} -- 0=melee(contact only), >0=ranged engage range
   -- bug note. warden's "melee + occasional ranged" is approximated as a
   -- short ranged tier (slug's) rather than real dual-mode ai -- a scope
   -- cut, not an oversight
+aggrorng=6 -- cells; monsters ignore the player entirely (no chase, no
+  -- attack) outside this radius -- playtest feedback that monsters chased
+  -- from anywhere on the map, unlike mrng which only gates ranged attack
+  -- range, not whether a monster notices the player at all
 wpow={2,4,7,12} -- weapon damage per hit, indexed by equipped weapon tier
   -- (4th entry is runic blade's, same reason as toolpow's above)
+guardthresh=12 -- frames x must be continuously held before guard engages
+  -- (dmg_player checks xhold>=this) -- comfortably past a normal tap's
+  -- length so a quick attack-tap never accidentally reads as a guard
+
+-- visibility radii (cells), first-pass per design.md's "3-4 tiles" base
+-- guess and its no-stacking max() rule (glowstone/lantern each extend the
+-- base, don't add to it). lanternr>glowr since readme's recipe table
+-- crafts a lantern from 2 glowstone -- the upgrade should out-light a
+-- single glowstone, not match it
+baser,glowr,lanternr=4,6,7
 
 -- player sprite slot (23-30) from facing fx,fy (each -1/0/1, never both 0
 -- once fx,fy=0,1 has run once in new_game()): key=(fx+1)+(fy+1)*3 gives
@@ -340,12 +373,13 @@ function draw_player()
   spr(legspr,px,py)
   spr(pspr[(fx+1)+(fy+1)*3],px,py)
   -- weapon overlay: mining (o held) shows the equipped tool, a recent
-  -- attack swing (atkt, set by try_attack()) shows the equipped weapon --
-  -- reuses the existing item-icon sprites rather than drawing new art,
-  -- offset toward whichever direction the player's currently facing
+  -- attack swing or an active guard (atkt>0 or xhold>=guardthresh, both
+  -- x-driven now) shows the equipped weapon -- reuses the existing
+  -- item-icon sprites rather than drawing new art, offset toward
+  -- whichever direction the player's currently facing
   if btn(4) then
     spr(tool<4 and 31+tool or 41,px+fx*6,py+fy*6)
-  elseif atkt>0 then
+  elseif atkt>0 or xhold>=guardthresh then
     spr(wtier<4 and 34+wtier or 42,px+fx*6,py+fy*6)
   end
 end
@@ -371,25 +405,31 @@ function gen_monsters()
     else cum={10,50,100} end
     local tier=weighted({1,2,3},cum,100)
     local typ=(tier-1)*2+1+flr(rnd(2))
-    add(mon,{x=cx*8,y=cy*8,typ=typ,hp=mhp[typ],cd=0})
+    -- per-instance speed variance (0.85x-1.15x of the type's mspd) so two
+    -- monsters of the same type don't move in lockstep -- playtest asked
+    -- for "some variation" beyond the existing per-type mspd table
+    add(mon,{x=cx*8,y=cy*8,typ=typ,hp=mhp[typ],cd=0,spd=0.85+rnd(0.3)})
   end
 end
 
 function hpdmg(n)
   hp=max(0,hp-n)
   hflash=6 -- full-screen palette-tint flash, see _draw()'s pal() block
-  sfx(0) -- stub: no sfx composed yet (tools/TASKS.md #2), slot 0 plays silence until then
-  if hp<=0 then gs=4 end -- end screen; was a separate `dead` flag before
-    -- phase 7's real state machine existed to hold this directly
+  sfx(0) -- player hit taken
+  if hp<=0 then sfx(15) gs=4 end -- player death, over top of the hit sound
+    -- above; end screen -- was a separate `dead` flag before phase 7's
+    -- real state machine existed to hold this directly
 end
 
--- parry (x, tapped) opens a short window (parryt, in frames); any monster
--- damage landing while it's still active is fully negated, per design.md
--- ("did damage land during the window," melee and ranged both route
--- through here). lava's hazard damage bypasses this and calls hpdmg()
--- directly -- parry is for monster attacks, not terrain
+-- guard (x, held past guardthresh frames): any monster damage landing
+-- while xhold is that high is fully negated, checked here so melee and
+-- ranged both route through the same gate. lava's hazard damage bypasses
+-- this and calls hpdmg() directly -- guard is for monster attacks, not
+-- terrain. replaces a tap-triggered timed parry window (see try_attack's
+-- comment for why: that window and attack shared o, tap-vs-hold on one
+-- button, which is exactly the ambiguity this whole revision removes)
 function dmg_player(n)
-  if parryt>0 then parryt=0 return end
+  if xhold>=guardthresh then sfx(6) return end -- guard blocks a hit
   hpdmg(n)
 end
 
@@ -407,7 +447,9 @@ function upd_mon(m)
   local typ,rng=m.typ,mrng[m.typ]
   local dx,dy=(px-m.x)/8,(py-m.y)/8
   local d=sqrt(dx*dx+dy*dy)
-  local sp=mspd[typ]
+  m.cd=max(0,m.cd-1)
+  if d>aggrorng then return end -- out of aggro range: idle, no chase/attack
+  local sp=mspd[typ]*m.spd
   if rng>0 then
     if typ==5 and d<rng*0.5 then
       if d>0 then m.x-=dx/d*sp m.y-=dy/d*sp end
@@ -418,20 +460,29 @@ function upd_mon(m)
     m.x+=dx/d*sp m.y+=dy/d*sp
   end
   if typ==1 then m.x+=rnd(1)-0.5 end
-  m.cd=max(0,m.cd-1)
   local inrange=rng>0 and d<=rng or (rng==0 and d<=0.75)
   if inrange and m.cd<=0 then
+    sfx(rng>0 and 8 or 7) -- ranged launch or melee thump -- readme specs
+      -- this "on windup," but no phase built a separate telegraph state
+      -- for monster ai, so it plays at the moment the attack lands instead
     dmg_player(mdmg[typ])
     m.cd=30
   end
 end
 
--- weapon swing (o, tapped): hits the first monster found within melee
+-- weapon swing (x, tapped): hits the first monster found within melee
 -- range of the tile the player's facing (typically the only one there).
--- one hit per press since btnp already edge-detects -- holding o doesn't
--- spam swings, and mining's hold-to-damage on the same button (try_mine)
--- only ever fires against blocks, never monsters, so the two don't cross.
--- a kill drops one unit of that type's material into mat[16+typ] (ids
+-- one hit per press since btnp already edge-detects -- holding x doesn't
+-- spam swings, it engages guard instead once xhold clears guardthresh
+-- (see dmg_player). moved here from o-tapped after a real bug found live-
+-- playtesting this session: o held (mine, btn) and o tapped (attack,
+-- btnp) fired on the identical first frame of any press, so mining a
+-- block and swinging at a monster could both happen from one input.
+-- mine now lives on o alone (still hold-only; a mineable block can never
+-- share a cell with a chest, so o's hold-vs-tap split there was never
+-- actually ambiguous) and attack+guard live on x alone -- each button is
+-- one tool, per design.md's revised control table. a kill drops one unit
+-- of that type's material into mat[16+typ] (ids
 -- 17-22, distinct from block ids 1-16 in the same flat table -- bat wing,
 -- crawler shell, slug gland, wraith essence, old bone, warden core, in
 -- readme's monster-table order)
@@ -444,6 +495,7 @@ end
 function try_attack()
   if wtier<1 then return end -- no weapon equipped (see craft()'s note on why this can happen)
   atkt=6 -- weapon-swing overlay flash, whether or not this swing connects
+  sfx(5) -- swing whoosh, every attempt, connects or not
   local hx,hy=facing_pt()
   for m in all(mon) do
     local ddx,ddy=m.x+4-hx,m.y+4-hy
@@ -452,10 +504,12 @@ function try_attack()
     -- fixed-point range for anything more than ~181px away (see mrng's
     -- comment), silently corrupting the comparison instead of erroring
     if abs(ddx)<8 and abs(ddy)<8 and ddx*ddx+ddy*ddy<64 then
+      sfx(1) -- monster hit taken
       m.hp-=wpow[wtier]
       if m.hp<=0 then
         local id=16+m.typ
         mat[id]=min(99,(mat[id] or 0)+1)
+        sfx(10) -- material pickup
         del(mon,m)
       end
       return
@@ -507,14 +561,18 @@ function loot()
   if r<10 and not book then
     book=true
     lootkind=3
+    sfx(12) -- book find
   elseif r<30 then
     inv[8]=min(99,inv[8]+1)
     lootkind=2
+    sfx(10) -- no dedicated "potion found" event in readme's sound table;
+      -- reuses material pickup rather than leaving this branch silent
   else
     local id=lootmat[1+flr(rnd(14))]
     mat[id]=min(99,(mat[id] or 0)+1)
     lootkind=1
     lootid=id
+    sfx(10) -- material pickup
   end
 end
 
@@ -530,6 +588,10 @@ function open_chest()
     if not c.opened then
       local ddx,ddy=c.x+4-hx,c.y+4-hy
       if abs(ddx)<8 and abs(ddy)<8 and ddx*ddx+ddy*ddy<64 then
+        sfx(11) -- chest open (creak+flourish), same instant as loot()'s
+          -- own sfx call below -- loot is granted instantly per readme,
+          -- only the visual reveal is staged by chopent, so both sounds
+          -- land together rather than one waiting for the other
         c.opened=true
         chopenc,chopent=c,12
         loot()
@@ -540,12 +602,10 @@ function open_chest()
   return false
 end
 
--- o-tap dispatch: a chest takes priority over a monster if somehow both
--- are in range at once (rare, unplaced against each other on purpose --
--- see gen_chests()); try_attack() already no-ops with nothing to hit
-function do_action()
-  if not open_chest() then try_attack() end
-end
+-- o-tap: open a chest if one's faced. used to also fall back to
+-- try_attack() here (attack lived on o-tapped originally) -- that's gone
+-- now that attack moved to x, so this is just open_chest() directly, no
+-- wrapper needed
 
 -- help overlay: full-screen, paused, matching game 2's help-screen
 -- precedent (bezel border, distinct text colour) per design.md. state
@@ -568,8 +628,8 @@ function draw_help()
   local c=11
   print("help",6,6,c)
   print("arrows move",6,16,c)
-  print("o: mine/attack/open chest",6,24,c)
-  print("x: parry",6,32,c)
+  print("o: mine/open chest",6,24,c)
+  print("x: tap attack,hold guard",6,32,c)
   print("o+x: inventory",6,40,c)
   print("tool tier mines matching",6,52,c)
   print("block tier or lower",6,60,c)
@@ -589,7 +649,8 @@ end
 -- slot count -- equip_tool/equip_weapon below only ever set them to a
 -- tier the player actually owns, so "equipped" always implies "owned"
 coins=0
-maxhp=10
+maxhp=20 -- doubled from design.md's first-pass 10 -- playtest feedback that
+  -- the starting pool felt too thin against monster/hazard damage
 
 -- flat recipe lookup, readme's crafting-table order. each ingredient is
 -- {id,qty}: id 1-22 reads/writes mat[] (16 block ids + 6 monster-drop
@@ -643,6 +704,7 @@ end
 -- free, since 0<tier is always true
 function craft(ri)
   if not can_craft(ri) then return false end
+  sfx(13) -- crafting success
   for i in all(recipe[ri].ing) do useqty(i[1],i[2]) end
   local out=recipe[ri].out
   if out==9 then tool,rp=4,true
@@ -662,6 +724,7 @@ end
 
 function add_coins(n)
   coins=min(255,coins+n)
+  sfx(9) -- coin pickup
 end
 
 -- only spends the potion if it'd actually help, so it can't be wasted at
@@ -671,6 +734,7 @@ function use_potion()
   if inv[8]>0 and hp<maxhp then
     inv[8]-=1
     hp=maxhp
+    sfx(14) -- health potion use
   end
 end
 
@@ -734,6 +798,7 @@ function new_game()
   hflash=0 -- hit-flash timer, set by hpdmg()
   chopent,chopenc=0,nil -- chest open-animation timer + which chest is animating
   lootkind,lootid=0,0 -- what the current loot popup (gs==5) shows, set by loot()
+  lootpopt=0 -- grace period before the loot popup can be dismissed, set to 30 on entry
   tool=1 -- equipped tool tier; player starts owning (see inv below) and wearing tier 1
   wtier=1 -- equipped weapon tier; same
   rp,rb=false,false -- runic pick/blade ever crafted (see craft())
@@ -741,11 +806,12 @@ function new_game()
     -- matching tool/wtier=1 above -- without this the tier-1 crafting
     -- recipes (which need copper ore, a tier-1-resistance block) would
     -- be uncraftable from a cold start with nothing equipped to mine it
-  hp=10 -- first-pass starting hp (design.md)
-  parryt=0
+  hp=maxhp -- start full, tracks maxhp rather than a separate literal
+  xhold=0 -- frames x has been continuously held; see try_attack/dmg_player
   mat={} -- material counts by id: 1-16 block drops (phase 2), 17-22 monster drops
   book=false
   lavat=0
+  rtick=0 -- frames spent facing a too-weak-tool block, for block_resist's rate limit
   coins=0
   matcount=0 -- scoring's materials_collected term; distinct from summing
     -- mat[]'s current counts, since crafting consumes those but a
@@ -774,8 +840,14 @@ function _update()
   end
   if gs==5 then -- chest loot popup; drawn over the frozen game view, not
     -- a full screen replacement (see draw_lootpopup()) -- always entered
-    -- from playing (chopent hitting 0) so it always returns straight there
-    if any_btnp() then gs=1 end
+    -- from playing (chopent hitting 0) so it always returns straight there.
+    -- lootpopt is a short grace period (same pattern as help's help_t)
+    -- before any_btnp can dismiss it -- playtest feedback that it vanished
+    -- almost instantly, since the o-tap that opened the chest (or a
+    -- residual keypress right after) could immediately count as the
+    -- dismiss input on the very next frame
+    if lootpopt>0 then lootpopt-=1
+    elseif any_btnp() then gs=1 end
     return
   end
   if gs==4 then -- end
@@ -785,8 +857,8 @@ function _update()
   -- o+x toggles inventory, checked before either state's own input
   -- handling so it always takes priority. requires both held together
   -- for combot frames (not just btnp on either edge): mining (o, held)
-  -- and parry (x, tapped) are both live during playing, so a quick
-  -- mine-then-parry could otherwise false-trigger an edge-based combo
+  -- and attack (x, tapped) are both live during playing, so a quick
+  -- mine-then-attack could otherwise false-trigger an edge-based combo
   -- check the instant x went down while o was already held. a short
   -- sustained-hold requirement is cheap insurance against that overlap
   if btn(4) and btn(5) then
@@ -834,7 +906,7 @@ function _update()
 
   -- lava: contact damage, ticked (not per-frame) while standing on it;
   -- not mined (blocktier returns nil for id 13), just a passable hazard.
-  -- goes through hpdmg() directly, not dmg_player(), so parry can't
+  -- goes through hpdmg() directly, not dmg_player(), so guard can't
   -- cheese terrain damage (see dmg_player's comment)
   if mget(cx,cy)==13 then
     lavat+=1
@@ -843,12 +915,18 @@ function _update()
     lavat=0
   end
 
-  -- o tapped = open a chest if one's faced, else weapon swing (do_action,
-  -- edge-triggered, separate from o held's mining above); x tapped = open
-  -- a parry window
-  if btnp(4) then do_action() end
-  if btnp(5) then parryt=8 end
-  parryt=max(0,parryt-1)
+  -- o tapped = open a chest if one's faced (mining, above, is o held).
+  -- x tapped = attack now (fires immediately, btnp, every press); x held
+  -- past guardthresh frames = guard (dmg_player checks xhold directly,
+  -- no separate trigger needed). xhold counts continuous-hold frames,
+  -- reset the instant x is released -- attack always fires on the press
+  -- edge regardless of how long the hold that follows turns out to be,
+  -- so a quick tap and the start of a long guard-hold look identical
+  -- until guardthresh actually passes; nothing double-fires because
+  -- guard isn't a second trigger, it's dmg_player reading xhold's value
+  if btnp(4) then open_chest() end
+  if btnp(5) then try_attack() end
+  if btn(5) then xhold+=1 else xhold=0 end
   atkt=max(0,atkt-1) -- weapon-swing overlay timer, set by try_attack()
   hflash=max(0,hflash-1) -- hit-flash timer, set by hpdmg()
   -- chest open-animation: counts down after open_chest() sets it; loot()
@@ -857,7 +935,7 @@ function _update()
   -- the loot popup once it reaches 0 -- see the chest-feedback discussion
   if chopent>0 then
     chopent-=1
-    if chopent<=0 then gs=5 end
+    if chopent<=0 then gs=5 lootpopt=30 end
   end
 
   for m in all(mon) do upd_mon(m) end
@@ -883,6 +961,30 @@ function draw_end()
   if blink(2) then print("press any button",26,100,7) end
 end
 
+-- lit radius (cells) for this frame: base, extended by an owned lantern
+-- (readme: "equip or hold" -- treated as passive-while-owned, since
+-- lantern has no dedicated equip slot and phase 7 left it display-only
+-- in the inventory screen specifically because fog didn't exist yet to
+-- give it a job) and/or a nearby glowstone. no stacking (design.md), so
+-- each source is a separate max() rather than an additive bonus; breaks
+-- out of the glow scan on the first hit since a second nearby glowstone
+-- can't raise the radius any further
+function visr()
+  local r=baser
+  if inv[7]>0 then r=max(r,lanternr) end
+  local pcx,pcy=cell_xy(px+4,py+4)
+  for g in all(glow) do
+    if mget(g[1],g[2])==16 then
+      local dx,dy=g[1]-pcx,g[2]-pcy
+      if dx*dx+dy*dy<=glowr*glowr then
+        r=max(r,glowr)
+        break
+      end
+    end
+  end
+  return r
+end
+
 function _draw()
   if gs==0 then draw_title_card("6 DUG DUG DOWN") return end
   if gs==3 then camera(0,0) draw_help() return end -- screen-space ui,
@@ -901,28 +1003,57 @@ function _draw()
     -- reset below before the hud/popup draw so neither reads red too
   local cx0,cy0=cell_xy(camx,camy)
   local cx1,cy1=cell_xy(camx+127,camy+127)
+  -- fog: litr is this frame's lit radius (cells); pcx/pcy is the player's
+  -- own cell, both reused below to gate monsters/chests too. hard cutoff
+  -- for now, not design.md's dithered edge -- that's deferred to after
+  -- phase 9's token/perf count per the open question it's already filed
+  -- under, rather than guessed at before there's a budget to check it against
+  local litr=visr()
+  local pcx,pcy=cell_xy(px+4,py+4)
   for cx=cx0,cx1 do
     for cy=cy0,cy1 do
-      local t=mget(cx,cy)
-      if t>0 then
-        spr(t,cx*8,cy*8)
+      local dx,dy=cx-pcx,cy-pcy
+      if dx*dx+dy*dy<=litr*litr then
+        local t=mget(cx,cy)
+        if t>0 then
+          local tier=blocktier(t)
+          if tier and tool<tier then
+            -- bedrock look: block's tier is above the equipped tool, so it
+            -- can't be dented at all right now (try_mine's resistance gate).
+            -- a flat dark tile reads as "not minable yet" instead of looking
+            -- identical to a same-tier-or-lower block the player actually
+            -- can break -- playtest feedback; recomputed live off `tool`
+            -- every frame, so it clears the moment the player upgrades
+            rectfill(cx*8,cy*8,cx*8+7,cy*8+7,5)
+            rect(cx*8,cy*8,cx*8+7,cy*8+7,0)
+          else
+            spr(t,cx*8,cy*8)
+          end
+        end
       end
     end
   end
   for m in all(mon) do
-    spr(16+m.typ,m.x,m.y)
+    -- cell-space distance, not raw pixels -- squaring raw pixel deltas
+    -- overflows pico-8's fixed-point range past ~181px on this map (see
+    -- try_attack's comment); litr is small so this is cheap and safe
+    local dx,dy=(m.x-px)/8,(m.y-py)/8
+    if dx*dx+dy*dy<=litr*litr then spr(16+m.typ,m.x,m.y) end
   end
   -- opened chests permanently show the open sprite (48); the one
   -- currently mid-animation (chopenc) still shows closed (31) for the
   -- first half of chopent's countdown -- a simple 2-frame swap, not a
   -- persistent per-chest animation state
   for c in all(chest) do
-    local cspr=31
-    if c.opened then
-      cspr=48
-      if c==chopenc and chopent>6 then cspr=31 end
+    local dx,dy=(c.x-px)/8,(c.y-py)/8
+    if dx*dx+dy*dy<=litr*litr then
+      local cspr=31
+      if c.opened then
+        cspr=48
+        if c==chopenc and chopent>6 then cspr=31 end
+      end
+      spr(cspr,c.x,c.y)
     end
-    spr(cspr,c.x,c.y)
   end
   draw_player()
   camera(0,0)
@@ -946,7 +1077,9 @@ function draw_lootpopup()
   spr(ic,30,56)
   print("found:",42,50,7)
   print(nm,42,58,10)
-  print("press any button",28,74,6)
+  if lootpopt<=0 then
+    print("press any button",28,74,6)
+  end
 end
 
 -- bottom-strip hud, y=112-127 per design.md's screen layout, matching
@@ -1094,3 +1227,68 @@ __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__sfx__
+000a000024350213401f3301c31000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000600001465010620000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00040000126400e620000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000600001866014650106450c62000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000800000865008620000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300002d7411e720000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000500003056030555305350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000800000665004630000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000400002c24124220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0004000024450284502c4600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000600001e02000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000500000a6311e440224502646000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00020000183501c3501f3502436000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000500002055024550285600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000800001e54128550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000c00002b06028060240600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000

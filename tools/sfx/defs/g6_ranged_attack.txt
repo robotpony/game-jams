@@ -1,0 +1,6 @@
+# ranged monster attack (spit/arrow launch): sharp hiss/twang, clearly
+# distinct from melee_attack's low thump -- higher pitch, saw wave, a
+# slide effect for the "twang"
+speed: 4
+44 saw 4 slide
+36 saw 2 none

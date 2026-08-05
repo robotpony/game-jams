@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Status
 
-`maps/`, `sfx/`, `music/`, and `shared/` are still placeholder directories with no scripts yet. `sprites/` has a working tool: `sprites/sprite_tool.py` (preview, sheet, ascii, patch subcommands) and `sprites/defs/` (hex-grid sprite source files). Check [TASKS.md](TASKS.md) for the current backlog before starting work on the other asset types.
+`maps/`, `music/`, and `shared/` are still placeholder directories with no scripts yet. `sprites/` has a working tool: `sprites/sprite_tool.py` (preview, sheet, ascii, patch subcommands) and `sprites/defs/` (hex-grid sprite source files). `sfx/` also has a working tool now: `sfx/sfx_tool.py` (encode, decode, patch, patch-all, selftest subcommands), `sfx/defs/` (human-readable note-sequence source files), and `sfx/manifests/`. Check [TASKS.md](TASKS.md) for the current backlog before starting work on the other asset types.
 
 There is no build, lint, or test tooling. Nothing exists to run yet, and none of the commands in [Usage pattern](#usage-pattern) below correspond to real files — they illustrate the intended CLI shape for scripts you write here.
 

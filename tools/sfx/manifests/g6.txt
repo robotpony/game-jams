@@ -1,0 +1,17 @@
+# slot -> sfx def, readme's Sound table order
+0 defs/g6_player_hit.txt
+1 defs/g6_monster_hit.txt
+2 defs/g6_mining_tick.txt
+3 defs/g6_block_break.txt
+4 defs/g6_block_resist.txt
+5 defs/g6_sword_swing.txt
+6 defs/g6_guard_block.txt
+7 defs/g6_melee_attack.txt
+8 defs/g6_ranged_attack.txt
+9 defs/g6_coin_pickup.txt
+10 defs/g6_material_pickup.txt
+11 defs/g6_chest_open.txt
+12 defs/g6_book_find.txt
+13 defs/g6_craft_success.txt
+14 defs/g6_potion_use.txt
+15 defs/g6_player_death.txt

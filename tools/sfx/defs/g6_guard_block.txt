@@ -1,0 +1,9 @@
+# guard blocks a hit: bright metallic ring. same held pitch across all
+# three notes (a ring doesn't change pitch), organ wave for a metallic
+# sustain, fading out. named for the hold-to-guard mechanic (see
+# 6/DESIGN.md's Controls revision note) -- this is what readme's Sound
+# section originally called "parry success" before that mechanic changed
+speed: 5
+48 organ 6 none
+48 organ 5 fadeout
+48 organ 3 fadeout

@@ -1,0 +1,6 @@
+# coin pickup: bright ascending chime. clean stepwise ascent, pulse
+# wave for a brighter/thinner tone than the material pickup's triangle
+speed: 4
+36 pulse 5 none
+40 pulse 5 none
+44 pulse 6 none

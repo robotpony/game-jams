@@ -19,10 +19,12 @@ A fill-in-the-blank template that forces resolution of every ambiguous dimension
 
 A script that converts human-readable note descriptions into valid Pico-8 `__sfx__` hex lines. Eliminates hand-authoring risk.
 
-- [ ] Input format: note pitch, wave, volume, effect per step, plus speed
-- [ ] Output: a valid 168-char `__sfx__` line
-- [ ] Verify output against a known-good `.p8` file (use `1/1.p8` as reference)
-- [ ] Place in `sfx/`
+- [x] Input format: note pitch, wave, volume, effect per step, plus speed — `sfx_tool.py`'s def-file format (`speed:`/`loop:` header lines, then one `pitch wave vol fx` per note; wave/effect accept either the numeric 0-7 or a name like `square`/`slide`)
+- [x] Output: a valid 168-char `__sfx__` line — `encode_sfx()`, asserted at generation time
+- [x] Verify output against a known-good `.p8` file (use `1/1.p8` as reference) — `selftest` subcommand: hand-decoded fixtures from `1/1.p8`, `3/3.p8`, and `4/4.p8` (not just `1/1.p8` alone), checked both against the real line and via encode-decode-reencode round-trip
+- [x] Place in `sfx/` — `tools/sfx/sfx_tool.py`, `tools/sfx/defs/`, `tools/sfx/manifests/`, mirroring `sprites/`'s layout and `patch`/`patch-all` CLI shape
+
+Used for real on game 6: all 16 events in `6/README.md`'s Sound table (`tools/sfx/defs/g6_*.txt`, `tools/sfx/manifests/g6.txt`), including two that explicitly echo/mirror another game's existing sound (`g6_book_find.txt` decodes `2/2.p8` slot 6, `g6_player_death.txt` decodes `3/3.p8` slot 10) rather than composing a from-scratch guess at "sounds similar." Built this way specifically because nothing in this pipeline can listen to the output to verify it — see `6/PLAN.md`'s SFX addendum for the reasoning; a human still needs to actually hear these in Pico-8 before calling the sound design itself correct, only the *encoding* is self-verified here.
 
 ---
 

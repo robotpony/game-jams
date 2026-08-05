@@ -1,0 +1,8 @@
+# block break: a bigger crunch/crumble, one-shot layered on top of the
+# last mining tick -- longer and louder than the tick, dropping pitch
+# and fading out to read as "crumbling"
+speed: 6
+24 noise 6 none
+20 noise 5 none
+16 noise 4 fadeout
+12 noise 2 none

@@ -1,0 +1,6 @@
+# sword swing: quick whoosh. phaser wave plus a slide effect sweeps the
+# pitch within each note, which reads as "whoosh" more than a clean
+# discrete pitch step would
+speed: 3
+45 phaser 4 slide
+30 phaser 2 none

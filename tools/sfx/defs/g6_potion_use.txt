@@ -1,0 +1,7 @@
+# health potion use: warm rising tone. organ wave, a slide effect
+# carries the pitch upward within the first note rather than stepping
+# between discrete notes, for a smoother "rising" feel than the
+# crafting/coin arpeggios
+speed: 8
+30 organ 4 slide
+40 organ 5 none

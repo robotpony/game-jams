@@ -1,0 +1,5 @@
+# monster hit taken: short percussive impact, deliberately lower-pitched
+# than guard_block's ring so the two don't read as the same event
+speed: 6
+20 noise 5 none
+16 noise 2 none
