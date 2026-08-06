@@ -40,3 +40,19 @@ First draft landed as [`pico8.md`](pico8.md): workflow overview, tool/lib refere
 - [x] Link to the spec template from task 1 — see `pico8.md`'s [Related](pico8.md#related)
 - [ ] `__sfx__` and `__gfx__` format with worked examples — still only in `tools/CLAUDE.md`'s data-format reference, no worked examples yet
 - [ ] Package the above as an actual skill (`.claude/skills/pico8/`), not just a reference doc
+
+---
+
+## 4. Build a `/tic80` skill
+
+Encodes TIC-80 knowledge so future sessions don't have to rediscover it, mirroring task 3's `/pico8` skill. Started once game 4 got a TIC-80 upscale folder ([`../4/tic-80/`](../4/tic-80/)).
+
+First draft landed as [`tic80.md`](tic80.md): spec, RAM/VRAM layout, cart format, CLI workflow, and Lua dialect/API notes, all verified against the local build's own binary output and source (`help spec`/`help ram`/`help vram`, `src/api/luaapi.c`, `src/api.h`) rather than general familiarity. Thinner than `pico8.md` on purpose: there's no TIC-80 game built yet to draw a real playtesting pipeline or pitfalls list from, and inventing either ahead of a real pain point is exactly what `pico8.md` didn't do.
+
+- [x] Spec/constraints table — see `tic80.md`'s [Spec](tic80.md#spec)
+- [x] RAM/VRAM memory layout — see `tic80.md`'s [RAM layout](tic80.md#ram-layout-96kb-total) and [VRAM layout](tic80.md#vram-layout-16kb)
+- [x] Cart format and CLI workflow (external `.lua` source + `import code`, since `.tic` is binary, unlike Pico-8's plain-text `.p8`) — see `tic80.md`'s [Cart format](tic80.md#cart-format) and [CLI workflow](tic80.md#cli-workflow)
+- [x] Lua dialect/API notes, including the traps that bite when porting from Pico-8 (`circ`/`circb` naming inversion, `spr()`'s unified scale/flip/rotate signature, no `pal()` equivalent) — see `tic80.md`'s [Lua dialect & API notes](tic80.md#lua-dialect--api-notes)
+- [ ] Playtesting technique (accessibility-driven live play, mirroring `pico8.md`'s pipeline) — can't write this honestly until `4/tic-80` has a real cart to test against
+- [ ] A generalized pitfalls list, mirroring `pico8.md`'s — needs real bug history first, none exists yet
+- [ ] Package the above as an actual skill (`.claude/skills/tic80/`), same open item as task 3's Pico-8 equivalent

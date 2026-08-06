@@ -83,3 +83,4 @@ Recurring, generalizable issues found across games 1 through 6. Per-game detail 
 - [`lib/CLAUDE.md`](../lib/CLAUDE.md) — shared Lua snippets, current build status, token budgeting table.
 - [`BUGS.md`](../BUGS.md) — full bug history behind the pitfalls above.
 - [`tools/TASKS.md`](TASKS.md) — this doc is a first draft toward task 3's planned `/pico8` skill; the skill itself isn't built yet.
+- [`tic80.md`](tic80.md) — this file's TIC-80 equivalent; worth reading side by side when porting a game between the platforms, since most of the traps are in where their APIs and dialects quietly diverge, not where they're obviously different.

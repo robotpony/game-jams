@@ -65,6 +65,22 @@ Useful when hand-authoring sprite/map/sfx data later, the way `tools/CLAUDE.md`'
 
 This project uses **Lua** for every TIC-80 build. It's the closest match to Pico-8 Lua (the language every other game in this jam already uses), so game logic and structure carry over with the least translation, and `lib/`'s existing snippets (state machine, tweening, collision, HUD, input, seeded RNG) are a straightforward adaptation rather than a rewrite into a different language.
 
+## Lua dialect & API notes
+
+Verified against this build's own source (`~/tools/TIC-80/src/api/luaapi.c`'s `luaapi_open()` and `~/tools/TIC-80/src/api.h`'s function table), not the website docs or general familiarity — the same standard this file holds itself to elsewhere.
+
+**Standard library**: `luaapi_open()` loads `base`, `package`, `coroutine`, `table`, `string`, `math`, and `debug`. No `os` or `io` (sandboxed, no filesystem access from Lua directly). This means `string.format` **is available**, unlike Pico-8 Lua, along with the full `table`/`math`/`coroutine` libraries — a materially richer stdlib than Pico-8's, so several of `pico8.md`'s [Lua dialect notes](pico8.md#lua-dialect-notes) workarounds (`tostr()` in place of `string.format`, hand-rolled table helpers) don't apply when porting code over.
+
+**API shape differs from Pico-8's in ways that will silently misport code**, not just rename it:
+
+| Pico-8 | TIC-80 | What changes |
+| ------ | ------ | ------------- |
+| `circ()` outline, `circfill()` filled | `circ()` **filled**, `circb()` outline | Names are inverted, not just renamed — the easiest of these three to port wrong without noticing. |
+| `spr()` + `sspr()`; `flip_x`/`flip_y` booleans | One `spr(id,x,y,colorkey,scale,flip,rotate,w,h)`; `flip` is a 0-3 bitmask (0 none, 1 horizontal, 2 vertical, 3 both); `rotate` is a native parameter | Fewer functions, different call shape. TIC-80 can rotate sprites natively in a way Pico-8 flatly can't (which is why Gyri's pico-8 build hand-authored rotation sprites in the first place) — but only in 90° steps as far as this is verified, and Gyri's fire-line angles (~35°/69°) don't land on those steps, so hand-authored sprites are probably still needed for the fine angles even here. |
+| `pal(c0,c1)` two-argument runtime swap | No equivalent function. `tic_vram`'s `mapping` field (the VRAM "palette map," 8 bytes, one nibble per colour index — see [RAM layout](#ram-layout-96kb-total)) is what a `pal()` swap would poke on Pico-8; on TIC-80 it has to be written directly via `poke4()` at that VRAM offset. The exact `poke4()` address/argument convention for this isn't nailed down yet — confirm it against a real test poke before relying on it, don't assume it from the byte layout alone. | Gyri's wave-recolor mechanic (`pal(8,ecol)`/`pal(7,ecol)`, reset every frame) has no drop-in translation; it needs new code built around this poke, not a line-for-line port. |
+
+Full function reference (names, signatures, descriptions) is in this build's own `~/tools/TIC-80/src/api.h`, but that's a local machine path, not something a fresh clone of this repo can follow. For a reference anyone can open, use the official API wiki: https://github.com/nesbox/TIC-80/wiki/API.
+
 ## Cart format
 
 A `.tic` cart is a **binary** file, not a plain-text format like Pico-8's `.p8` (which stores every section, including `__lua__`, as readable text with hex-encoded sprite/map/sound data). Editing a `.tic` file directly with a text tool isn't viable, and it doesn't diff cleanly in git.
@@ -105,7 +121,7 @@ There's no headless `-run`-and-exit equivalent to Pico-8's; verification is manu
 tic80 --fs=<dir> --cli --cmd "load <name>.tic & export html <name>_export & exit"
 ```
 
-This produces a **zip** (`<name>_export.zip`), not a single self-contained HTML file the way Pico-8's `-export` does. Inside: `index.html`, `tic80.js` (~228KB), `tic80.wasm` (~5.3MB — the whole TIC-80 runtime, identical across every cart), and `cart.tic` (the actual game, tiny by comparison). Unzip before deploying; the file count and the runtime's fixed size are why `preview/generate.py` extracts the runtime once and shares it across every TIC-80 game's export rather than duplicating ~5.3MB per game (see [`preview/CLAUDE.md`](../preview/CLAUDE.md)).
+This produces a **zip** (`<name>_export.zip`), not a single self-contained HTML file the way Pico-8's `-export` does. Inside: `index.html`, `tic80.js` (~228KB), `tic80.wasm` (~5.3MB — the whole TIC-80 runtime, identical across every cart), and `cart.tic` (the actual game, tiny by comparison). `preview/generate.py`'s `ensure_export_tic80()` unzips it as-is into each game's own export folder rather than sharing one runtime copy across games; that means every TIC-80 build's export carries its own ~5.5MB, a deliberate simplicity-over-disk-space choice (see [`preview/CLAUDE.md`](../preview/CLAUDE.md)'s Export handling section for the reasoning, and revisit only if that stops being cheap enough).
 
 ## Tooling gap
 
@@ -116,3 +132,4 @@ This produces a **zip** (`<name>_export.zip`), not a single self-contained HTML 
 - [`../PLATFORMS.md`](../PLATFORMS.md) — comparison table across all four jam platforms
 - [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md#platforms-and-folder-layout) — how a game folder is organized once it has more than one platform's build
 - [`../4/tic-80/CLAUDE.md`](../4/tic-80/CLAUDE.md) — first game built against this reference
+- [`pico8.md`](pico8.md) — this file's Pico-8 equivalent; the two are worth reading side by side when porting a game between the platforms, since most of the traps are in where their APIs and dialects quietly diverge, not where they're obviously different
