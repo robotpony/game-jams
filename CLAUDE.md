@@ -10,6 +10,7 @@ Entries for the "Warped 2026 Summer Game Jam" (see [README.md](README.md)): 4 we
 
 ```
 SPEC-FORMAT.md    the document set and section structure every game folder follows
+PLATFORMS.md      constraints/capabilities reference for each platform a game can target
 BUGS.md           cross-game bug tracker, implementation bugs found by reading cart source
 1/, 2/, 3/, ...   one folder per game entry, numbered in build order
 lib/              shared Lua snippets, copied into pico-8 carts (own CLAUDE.md)
@@ -45,7 +46,7 @@ Verification for a game is always manual: load the cart and play it. `PLAN.md` f
 
 ## Pico-8 constraints (games)
 
-These shape every implementation decision in a game folder:
+Every game in the jam so far targets Pico-8, so these shape every implementation decision in a game folder unless that game's CLAUDE.md says otherwise. Building on Picotron, Pygame, or TIC-80 instead — for an upscale, see [`PLATFORMS.md`](PLATFORMS.md) for that platform's equivalents and [`SPEC-FORMAT.md`](SPEC-FORMAT.md#platforms-and-folder-layout) for how its files are organized.
 
 - Token limit ~8,192 per cart; code is compressed and must be counted aggressively
 - Display: 128×128 pixels, 16-colour palette

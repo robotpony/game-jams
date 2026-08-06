@@ -19,11 +19,39 @@ Each game folder (`1/`, `2/`, `3/`, ...) holds four documents, each with a disti
 
 DESIGN.md is a pre-implementation document. Once a cart exists, the Architecture section in CLAUDE.md is the source of truth for how the game actually works. At that point DESIGN.md is either deleted or kept as historical context and marked superseded at the top. Don't maintain both in parallel once the cart exists; that's how they drift.
 
-CLAUDE.md always exists, even pre-build. Early on it holds Pico-8 constraints and a "not yet built" status note. Once the cart exists, it grows an Architecture section (see [`1/CLAUDE.md`](1/CLAUDE.md) for a worked example).
+CLAUDE.md always exists, even pre-build. Early on it holds platform constraints and a "not yet built" status note. Once the cart exists, it grows an Architecture section (see [`1/CLAUDE.md`](1/CLAUDE.md) for a worked example).
+
+## Platforms and folder layout
+
+A game targets one platform by default: Pico-8, Picotron, Pygame, or TIC-80 (see [`PLATFORMS.md`](PLATFORMS.md) for what each implies). Every game jammed so far is single-platform, and a single-platform game keeps the flat layout already in use: `<n>/README.md`, `<n>/DESIGN.md`, `<n>/PLAN.md`, `<n>/CLAUDE.md`, plus that platform's build output, directly in the game's numbered folder. Nothing below changes for those games.
+
+A game that later gets a second build on a different platform (an "upscale" of an existing Pico-8 entry) keeps its original platform's files exactly where they were and gains a subfolder per platform:
+
+```
+7/
+  README.md         shared, platform-agnostic spec (see below)
+  pico-8/
+    DESIGN.md
+    PLAN.md
+    CLAUDE.md
+    7.p8
+  pygame/
+    DESIGN.md
+    PLAN.md
+    CLAUDE.md
+    main.py
+    assets/
+```
+
+`README.md` stays at the game-folder level and stays platform-agnostic: game overview, scenes, core mechanics, player state, game-over conditions, sound events, and tile/sprite visuals don't change because the engine underneath changed. It gains a **Platforms** table (folder, status, one-line note) once a second platform exists, in the same style as the [Scenes format](#scenes-format) table below.
+
+DESIGN.md, PLAN.md, and CLAUDE.md stay platform-specific by nature (pixel layout, constraints, build order, as-built architecture), so each platform gets its own copy under its own subfolder instead of one shared document trying to describe two different engines at once.
+
+**Migrating an existing single-platform game to this layout happens as part of that game's specific port, not ahead of time.** When game `n` gets its first upscale, move its existing flat files into `n/pico-8/` (`git mv`, preserving history) as the first step of that port's own PLAN.md, rather than restructuring every game folder in the repo for a platform that may never arrive.
 
 ## README.md
 
-Open with the game's name, its genre in half a sentence, and a one-line aesthetic note. Every game in this project targets an Atari-2600-via-Pico-8 look, but say so anyway; it's what makes the palette and sprite choices legible to a reader who hasn't seen the game run.
+Open with the game's name, its genre in half a sentence, a one-line aesthetic note, and the platform it targets. Most games in this project target an Atari-2600-via-Pico-8 look; say so anyway even when true, since it's what makes the palette and sprite choices legible to a reader who hasn't seen the game run. A game with more than one platform build adds a **Platforms** table right after that line instead of a single platform mention — see [Platforms and folder layout](#platforms-and-folder-layout) above.
 
 Required sections, in order:
 
@@ -67,7 +95,7 @@ Required when the game has one:
 
 Recommended:
 
-- **Token budget** — a note on what's likely to be expensive (state count, table sizes) and what to lean on `lib/` for instead of rederiving.
+- **Budget** — a note on what's likely to be expensive (state count, table sizes on a token-limited platform; draw calls or entity counts on an uncapped one) and what to lean on `lib/` for instead of rederiving. Name it "Token budget" on Pico-8/TIC-80 builds, where the number is countable in advance; "Performance budget" on Picotron/Pygame builds, where it isn't.
 
 ## PLAN.md
 
@@ -79,7 +107,7 @@ Required sections, in order:
 
 1. **Project** — one line: game name, genre, aesthetic, link to README.md. If no cart exists yet, say so plainly ("Status: not yet built") rather than letting an empty Architecture section imply otherwise.
 2. **Development** — the Pico-8 workflow (no build system; `pico8 -run <n>.p8`, or load plus Ctrl+R).
-3. **Pico-8 constraints** — token limit, display, sprites, map, sound, Lua variant gaps. These don't change game to game; copy from an existing game's CLAUDE.md.
+3. **Platform constraints** — code/token budget, display, sprites, sound, language gaps for whichever platform this build targets. These don't change game to game within a platform; link to [`PLATFORMS.md`](PLATFORMS.md) for the reference table instead of restating it, and keep only what's specific to this game (an actual measured token count, a chosen resolution).
 4. **Architecture** (once built) — key systems, state table, SFX slot table, state variables. This is the as-built version of DESIGN.md; write it by reading the finished cart, not by copying DESIGN.md unchanged.
 5. **Reusable code** — pointer to [`../lib/CLAUDE.md`](lib/CLAUDE.md).
 
@@ -101,6 +129,7 @@ Game 2 predates the four-document split entirely. Its README has been restructur
 ## Related
 
 - [`BUGS.md`](BUGS.md) — a root-level, cross-game bug tracker for implementation bugs and build-vs-spec mismatches found by reading a cart's source. Distinct from a README's Open Questions: Open Questions are pre-implementation design gaps, BUGS.md entries are things the shipped code gets wrong relative to README.md/DESIGN.md.
+- [`PLATFORMS.md`](PLATFORMS.md) — constraints and capabilities reference for each of the jam's four platforms.
 - [`tools/TASKS.md`](tools/TASKS.md) — this document fulfills task 1, originally scoped there as `pico8-spec-template.md`.
 - [`lib/CLAUDE.md`](lib/CLAUDE.md) — shared Lua snippets; check before writing a game's Core system design from scratch.
 - [`tools/CLAUDE.md`](tools/CLAUDE.md) — asset-generation scripts and the Pico-8 data format reference (`__gfx__`, `__map__`, `__sfx__`, `__music__`), useful when filling in DESIGN.md's palette and sprite sections.

@@ -16,7 +16,15 @@ warpedvisions.org blog theme, not an approximation of it.
 Also runs `pico8 -x <cart>.p8 -export "<num>.html"` for any game whose cart
 has a captured label but no export yet, writing into preview/exports/<num>/.
 Carts without a label are skipped with a note (Pico-8 refuses to export
-until a label has been captured in-editor).
+until a label has been captured in-editor). Before handing the cart to
+pico8, a comment-stripped copy is generated via tools/export/strip_comments.py
+and exported instead of the real cart file: Pico-8's export path compresses
+the raw __lua__ text (comments included) into a fixed-capacity slot
+separate from the 8,192 token limit, and this project's carts carry heavy
+inline documentation comments dense enough to blow that cap even when
+well under the token limit (see 6/CLAUDE.md's Status line for the game
+that first hit this). The stripped copy is a build artifact written into
+preview/exports/<num>/, not a change to the real cart.
 
 Usage:
     python3 generate.py           regenerate preview/index.html (default)
@@ -30,11 +38,15 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 EXPORTS_DIR = SCRIPT_DIR / "exports"
+
+sys.path.insert(0, str(ROOT / "tools" / "export"))
+import strip_comments  # noqa: E402 (needs sys.path set up first)
 DOWNLOADS_DIR = SCRIPT_DIR / "downloads"
 GAMES_DIR = SCRIPT_DIR / "games"
 GITHUB_REF = "main"  # branch used for github.com/.../blob/<ref>/... links
@@ -179,11 +191,27 @@ def ensure_export(num: str, cart_path: Path) -> tuple[str | None, str]:
         step(f"cart is ready but no pico8 binary found, set PICO8_PATH")
         return None, "pico8 binary not found (set PICO8_PATH)"
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Export a comment-stripped copy, not cart_path directly: Pico-8's
+    # export path fails "code too large" once compressed __lua__ text
+    # (comments included) exceeds its fixed capacity, independent of the
+    # token count. See strip_comments.py's module docstring.
+    export_source = cart_path
+    stripped_path = out_dir / f"{num}.stripped.p8"
+    try:
+        stats = strip_comments.strip_cart_file(cart_path, stripped_path)
+        saved = stats["lua_bytes_before"] - stats["lua_bytes_after"]
+        if saved > 0:
+            step(f"stripped {saved:,} bytes of comments for export (dev cart untouched)")
+            export_source = stripped_path
+    except OSError as e:
+        step(f"comment-strip step failed, exporting the real cart as-is: {e}")
+
     step(f"popping cart {num} into pico8 for a web export...")
     try:
         result = subprocess.run(
-            [pico8, "-x", cart_path.name, "-export", str(out_html.resolve())],
-            cwd=cart_path.parent,
+            [pico8, "-x", export_source.name, "-export", str(out_html.resolve())],
+            cwd=export_source.parent,
             capture_output=True,
             text=True,
             timeout=60,

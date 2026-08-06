@@ -1,6 +1,6 @@
-# #7 WAR TURN BASED README
+# 7 Perfect War
 
-A turn based game.
+A two-player hex-based WWII combined-arms wargame, approximated through Pico-8's native palette with a distinct semantic colour mapping rather than the jam's usual Atari-2600 look (see [DESIGN.md](DESIGN.md)'s Palette table).
 
 ## Core Concept
 

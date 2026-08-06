@@ -41,7 +41,9 @@ Earlier versions of this page rendered README/DESIGN/PLAN/CLAUDE text inline (vi
 
 ### Pico-8 export handling
 
-Unchanged from before: for each game with a cart, `ensure_export()` shells out to `pico8 -x <cart>.p8 -export ...` to produce a playable web build, but only if the cart has a captured label (`__label__` present in the `.p8` file — Pico-8 refuses to export otherwise). `find_pico8()` locates the binary via `PICO8_PATH`, `PATH`, or a couple of hardcoded macOS install paths, since `pico8` is often just a shell alias rather than an executable subprocess can resolve.
+For each game with a cart, `ensure_export()` shells out to `pico8 -x <cart>.p8 -export ...` to produce a playable web build, but only if the cart has a captured label (`__label__` present in the `.p8` file — Pico-8 refuses to export otherwise). `find_pico8()` locates the binary via `PICO8_PATH`, `PATH`, or a couple of hardcoded macOS install paths, since `pico8` is often just a shell alias rather than an executable subprocess can resolve.
+
+Before shelling out, `ensure_export()` now runs `tools/export/strip_comments.py`'s `strip_cart_file()` against the real cart and exports the comment-stripped result instead (written to `exports/<n>/<n>.stripped.p8`, a build artifact, not a change to the real cart). Pico-8's export path compresses the raw `__lua__` text, comments included, into a fixed-capacity slot separate from the 8,192 token limit; game 6's cart sat at 4,357 tokens but had comments dense enough (65% of its source bytes) to blow that byte cap, failing with `failed: code block too large` even though the token counter looked fine. If the strip step itself fails (read/write error), `ensure_export()` falls back to exporting the real cart directly rather than blocking the whole run.
 
 ### Generated output
 
