@@ -32,8 +32,11 @@ Used for real on game 6: all 16 events in `6/README.md`'s Sound table (`tools/sf
 
 Encodes Pico-8 knowledge so future sessions don't have to rediscover it.
 
-- [ ] `__sfx__` and `__gfx__` format with worked examples
-- [ ] Token counting heuristics and short-name conventions
-- [ ] Standard state machine pattern for multi-screen games
-- [ ] Lua dialect notes: no `string.format`, `tostr()` vs `tostring()`, `add()` for tables
-- [ ] Link to the spec template from task 1
+First draft landed as [`pico8.md`](pico8.md): workflow overview, tool/lib reference, token vs. export budgeting, Lua dialect notes, state machine convention, the accessibility-driven playtest pipeline, and a generalized pitfalls list drawn from `BUGS.md`. That covers the content below in doc form; packaging it as an actual `/pico8` skill is still open.
+
+- [x] Token counting heuristics and short-name conventions — see `pico8.md`'s [Two different size limits](pico8.md#two-different-size-limits)
+- [x] Standard state machine pattern for multi-screen games — see `pico8.md`'s [State machine convention](pico8.md#state-machine-convention)
+- [x] Lua dialect notes: no `string.format`, `tostr()` vs `tostring()`, `add()` for tables — see `pico8.md`'s [Lua dialect notes](pico8.md#lua-dialect-notes)
+- [x] Link to the spec template from task 1 — see `pico8.md`'s [Related](pico8.md#related)
+- [ ] `__sfx__` and `__gfx__` format with worked examples — still only in `tools/CLAUDE.md`'s data-format reference, no worked examples yet
+- [ ] Package the above as an actual skill (`.claude/skills/pico8/`), not just a reference doc

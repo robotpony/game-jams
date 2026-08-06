@@ -1,10 +1,10 @@
 # Gyri #4 — Design
 
-Technical design derived from the spec in [README.md](README.md), following [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md). `4.p8` now exists and implements 7 of 8 phases, but this document remains the source of truth rather than being superseded early: CLAUDE.md's own status note explains the Architecture-section handoff is deliberately deferred until Phase 8 lands, the way [`../3/CLAUDE.md`](../3/CLAUDE.md) documents game 3.
+Technical design derived from the spec in [README.md](README.md), following [`../SPEC-FORMAT.md`](../../SPEC-FORMAT.md). `4.p8` now exists and implements 7 of 8 phases, but this document remains the source of truth rather than being superseded early: CLAUDE.md's own status note explains the Architecture-section handoff is deliberately deferred until Phase 8 lands, the way [`../3/CLAUDE.md`](../../3/CLAUDE.md) documents game 3.
 
 ## Screen layout (128×128)
 
-Title: the shared jam title card, drawn by `draw_title_card("GYRI #4")` from [`../lib/title.lua`](../lib/title.lua). No per-game layout to design here; games 1-3 already use the same card.
+Title: the shared jam title card, drawn by `draw_title_card("GYRI #4")` from [`../lib/title.lua`](../../lib/title.lua). No per-game layout to design here; games 1-3 already use the same card.
 
 Game:
 
@@ -49,7 +49,7 @@ Wave transition: no layout sketch needed (per SPEC-FORMAT's rule to skip sketche
 
 ## Palette
 
-Base colour pool reuses game 1's Atari-2600 approximation ([`../1/CLAUDE.md`](../1/CLAUDE.md)): black(0), white(7), red(8), orange(9), yellow(10), green(11), dark green(3), teal(12), sky blue(6), dark blue(5), purple(2), dark red(13).
+Base colour pool reuses game 1's Atari-2600 approximation ([`../1/CLAUDE.md`](../../1/CLAUDE.md)): black(0), white(7), red(8), orange(9), yellow(10), green(11), dark green(3), teal(12), sky blue(6), dark blue(5), purple(2), dark red(13).
 
 | Element | Colour | Index |
 | ------- | ------ | ----- |

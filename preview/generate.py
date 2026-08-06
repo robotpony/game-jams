@@ -5,26 +5,41 @@ Scans numbered game folders (1/, 2/, 3/, ...) and templates a single
 self-contained preview/index.html: a grid of Techie-style flip tiles, one
 per game. A tile's front face is informational (title, tagline, status)
 plus a live embed of the built cart; its back face links out to that
-game's README/DESIGN on GitHub and its downloadable .p8, rather than
+game's README/DESIGN on GitHub and its downloadable cart, rather than
 rendering any of those documents inline.
+
+A game folder is either single-platform (flat: <n>/<n>.p8 or <n>/<n>.tic
+directly in the game folder) or multi-platform (a <n>/pico-8/ and/or
+<n>/tic-80/ subfolder, each with its own cart/DESIGN.md/PLAN.md/CLAUDE.md
+per SPEC-FORMAT.md's platform layout). Either way, collect_game() produces
+one or more "builds" per game; a tile with more than one build gets a
+small platform tab switcher on its embed instead of a single iframe.
 
 The page uses Warped's "Techie" dev-tool visual system, vendored into
 preview/theme/ from ~/projects/warped/visual-style-next/techie/ (styles.css
 + Fira Code). This is a deliberately different, all-dark register from the
 warpedvisions.org blog theme, not an approximation of it.
 
-Also runs `pico8 -x <cart>.p8 -export "<num>.html"` for any game whose cart
-has a captured label but no export yet, writing into preview/exports/<num>/.
-Carts without a label are skipped with a note (Pico-8 refuses to export
-until a label has been captured in-editor). Before handing the cart to
-pico8, a comment-stripped copy is generated via tools/export/strip_comments.py
-and exported instead of the real cart file: Pico-8's export path compresses
-the raw __lua__ text (comments included) into a fixed-capacity slot
-separate from the 8,192 token limit, and this project's carts carry heavy
-inline documentation comments dense enough to blow that cap even when
-well under the token limit (see 6/CLAUDE.md's Status line for the game
-that first hit this). The stripped copy is a build artifact written into
-preview/exports/<num>/, not a change to the real cart.
+For a Pico-8 build, runs `pico8 -x <cart>.p8 -export "<num>.html"` if the
+cart has a captured label but no export yet, writing into
+preview/exports/<num>/pico-8/. Carts without a label are skipped with a
+note (Pico-8 refuses to export until a label has been captured in-editor).
+Before handing the cart to pico8, a comment-stripped copy is generated via
+tools/export/strip_comments.py and exported instead of the real cart file:
+Pico-8's export path compresses the raw __lua__ text (comments included)
+into a fixed-capacity slot separate from the 8,192 token limit, and this
+project's carts carry heavy inline documentation comments dense enough to
+blow that cap even when well under the token limit (see 6/CLAUDE.md's
+Status line for the game that first hit this). The stripped copy is a
+build artifact written into preview/exports/<num>/pico-8/, not a change
+to the real cart.
+
+For a TIC-80 build, runs `tic80 --cli --cmd "load ... & export html ..."`
+for any cart with no export yet, writing into preview/exports/<num>/tic-80/.
+TIC-80 has no label concept, so export isn't gated on one. Its export is a
+zip (index.html + tic80.js + tic80.wasm + cart.tic, not one self-contained
+HTML file like Pico-8's); ensure_export_tic80() unzips it into place. See
+tools/tic80.md for the underlying CLI workflow this wraps.
 
 Usage:
     python3 generate.py           regenerate preview/index.html (default)
@@ -39,11 +54,24 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import zipfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 EXPORTS_DIR = SCRIPT_DIR / "exports"
+
+# Platforms this page knows how to find a cart and export a web build for,
+# in the fixed order tabs/rows should show them. Adding a platform means
+# adding an entry here plus its own ensure_export_<platform>() function;
+# an unrecognized subfolder name under a game dir is silently ignored
+# rather than crashing the whole scan.
+PLATFORM_INFO = {
+    "pico-8": {"label": "Pico-8", "ext": "p8"},
+    "tic-80": {"label": "TIC-80", "ext": "tic"},
+}
+PLATFORM_ORDER = list(PLATFORM_INFO.keys())
 
 sys.path.insert(0, str(ROOT / "tools" / "export"))
 import strip_comments  # noqa: E402 (needs sys.path set up first)
@@ -144,6 +172,21 @@ def find_pico8() -> str | None:
     return None
 
 
+def find_tic80() -> str | None:
+    """Locates the tic80 binary. Same alias problem as pico8 (see
+    find_pico8) — `tic80` is aliased in this project's dev shell, not on
+    PATH as a resolvable executable. Override with the TIC80_PATH env var
+    if needed."""
+    if env_path := os.environ.get("TIC80_PATH"):
+        return env_path
+    if which := shutil.which("tic80"):
+        return which
+    candidate = Path.home() / "tools/TIC-80/build/bin/tic80"
+    if candidate.exists():
+        return str(candidate)
+    return None
+
+
 def github_repo_url() -> str | None:
     """Resolves this repo's GitHub URL from its origin remote (one remote
     for the whole repo, so every game folder's doc links share this same
@@ -169,17 +212,19 @@ def github_repo_url() -> str | None:
     return None
 
 
-def ensure_export(num: str, cart_path: Path) -> tuple[str | None, str]:
+def ensure_export_pico8(num: str, cart_path: Path) -> tuple[str | None, str]:
     """Runs pico8's headless HTML export if a label exists and no export yet.
     Returns (embed_path, status) where embed_path is the relative path (from
     preview/) if an export is or becomes available, else None, and status
-    explains why when it isn't.
+    explains why when it isn't. Always writes under exports/<num>/pico-8/,
+    even for a single-platform game, so every build's output lives at a
+    predictable, platform-qualified path.
     """
-    out_dir = EXPORTS_DIR / num
+    out_dir = EXPORTS_DIR / num / "pico-8"
     out_html = out_dir / f"{num}.html"
     if out_html.exists():
         step(f"already has a web export, reusing it")
-        return f"exports/{num}/{num}.html", "ok"
+        return f"exports/{num}/pico-8/{num}.html", "ok"
     if not cart_path.exists():
         step(f"no cart yet, still cooking in the design oven")
         return None, "no cart"
@@ -221,48 +266,162 @@ def ensure_export(num: str, cart_path: Path) -> tuple[str | None, str]:
         return None, f"export failed to run ({e})"
     if out_html.exists():
         step(f"export complete, {num} is now playable in-browser")
-        return f"exports/{num}/{num}.html", "ok"
+        return f"exports/{num}/pico-8/{num}.html", "ok"
     detail = (result.stderr or result.stdout or "").strip().splitlines()
     step(f"export ran but no file showed up, that's odd")
     return None, f"export ran but produced no file ({detail[-1] if detail else 'no output'})"
 
 
-def stage_download(num: str, cart_path: Path) -> str | None:
+def ensure_export_tic80(num: str, cart_path: Path) -> tuple[str | None, str]:
+    """Runs tic80's headless HTML export if no export exists yet. Returns
+    (embed_path, status) the same shape as ensure_export_pico8(). TIC-80 has
+    no label concept, so unlike Pico-8 there's nothing to gate export on
+    besides the cart existing.
+
+    tic80's `export html` writes a zip (index.html + tic80.js + tic80.wasm
+    + cart.tic), not one self-contained file — see tools/tic80.md's Web
+    export section. `--fs` sandboxes tic80 to one folder for both the cart
+    it loads and the zip it writes, so the cart is staged into a scratch
+    temp dir first rather than pointed at cart_path's real folder directly
+    (avoids tic80 writing its export artifact next to the dev cart).
+    """
+    out_dir = EXPORTS_DIR / num / "tic-80"
+    out_html = out_dir / "index.html"
+    if out_html.exists():
+        step(f"already has a web export, reusing it")
+        return f"exports/{num}/tic-80/index.html", "ok"
+    if not cart_path.exists():
+        step(f"no cart yet, still cooking in the design oven")
+        return None, "no cart"
+    tic80 = find_tic80()
+    if not tic80:
+        step(f"cart is ready but no tic80 binary found, set TIC80_PATH")
+        return None, "tic80 binary not found (set TIC80_PATH)"
+
+    step(f"popping cart {num} into tic80 for a web export...")
+    try:
+        with tempfile.TemporaryDirectory(prefix="tic80-export-") as staging:
+            staging_path = Path(staging)
+            staged_cart = staging_path / cart_path.name
+            shutil.copy2(cart_path, staged_cart)
+            result = subprocess.run(
+                [
+                    tic80, f"--fs={staging_path}", "--cli",
+                    "--cmd", f"load {cart_path.name} & export html out & exit",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            zip_path = staging_path / "out.zip"
+            if not zip_path.exists():
+                detail = (result.stderr or result.stdout or "").strip().splitlines()
+                step(f"export ran but no zip showed up, that's odd")
+                return None, f"export ran but produced no file ({detail[-1] if detail else 'no output'})"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(zip_path) as zf:
+                zf.extractall(out_dir)
+    except (subprocess.SubprocessError, OSError, zipfile.BadZipFile) as e:
+        step(f"export blew a fuse: {e}")
+        return None, f"export failed to run ({e})"
+
+    if out_html.exists():
+        step(f"export complete, {num} is now playable in-browser")
+        return f"exports/{num}/tic-80/index.html", "ok"
+    step(f"zip extracted but no index.html inside, that's odd")
+    return None, "export produced a zip with no index.html"
+
+
+def stage_download(num: str, cart_path: Path, suffix: str = "") -> str | None:
     """Copies the cart into preview/downloads/ so the page works when
-    preview/ is deployed on its own, without its sibling game folders."""
+    preview/ is deployed on its own, without its sibling game folders.
+    `suffix` (e.g. "-pico-8") disambiguates a game with more than one
+    platform build; a single-build game keeps its plain <num>.<ext> name
+    to avoid renaming every existing download link for no reason."""
     if not cart_path.exists():
         return None
     DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    dest = DOWNLOADS_DIR / cart_path.name
+    dest_name = f"{num}{suffix}{cart_path.suffix}"
+    dest = DOWNLOADS_DIR / dest_name
     shutil.copy2(cart_path, dest)
-    step(f"tucked a download copy into downloads/{cart_path.name}")
-    return f"downloads/{cart_path.name}"
+    step(f"tucked a download copy into downloads/{dest_name}")
+    return f"downloads/{dest_name}"
+
+
+def collect_build(num: str, platform: str, build_dir: Path, is_multi: bool, github_base: str | None) -> dict:
+    """Collects one platform build's data: cart, export, and DESIGN.md link.
+    build_dir is the folder that actually holds this build's files — the
+    game folder itself for a flat single-platform game, or a pico-8/tic-80
+    subfolder for a multi-platform one. `is_multi` controls filename
+    suffixing (stage_download) and label prefixing (the JS templates use
+    platformLabel directly, so this only affects downloads/ naming here)."""
+    info = PLATFORM_INFO[platform]
+    cart_path = build_dir / f"{num}.{info['ext']}"
+    step(f"[{info['label']}] cart: {'found' if cart_path.exists() else 'not built yet'}")
+    if platform == "pico-8":
+        embed_path, embed_status = ensure_export_pico8(num, cart_path)
+    elif platform == "tic-80":
+        embed_path, embed_status = ensure_export_tic80(num, cart_path)
+    else:  # pragma: no cover — PLATFORM_INFO only lists platforms with a
+        # matching ensure_export_* above; new entries need one added here.
+        embed_path, embed_status = None, "no exporter wired up for this platform"
+    has_design = (build_dir / "DESIGN.md").exists()
+    dir_rel = build_dir.relative_to(ROOT).as_posix()
+    suffix = f"-{platform}" if is_multi else ""
+    return {
+        "platform": platform,
+        "platformLabel": info["label"],
+        "dirRel": dir_rel,
+        "hasCart": cart_path.exists(),
+        "cartFileName": cart_path.name,
+        "cartRelPath": stage_download(num, cart_path, suffix),
+        "embedPath": embed_path,
+        "embedStatus": embed_status,
+        "designUrl": f"{github_base}/blob/{GITHUB_REF}/{dir_rel}/DESIGN.md" if (github_base and has_design) else None,
+        "hasDesign": has_design,
+    }
+
+
+def find_build_specs(dir_: Path, num: str) -> list[tuple[str, Path]]:
+    """Returns [(platform, build_dir), ...] for a game folder: one entry per
+    pico-8/tic-80 subfolder that exists (the multi-platform layout
+    SPEC-FORMAT.md defines once a game gets a second platform), or, if
+    neither subfolder exists, a single flat-layout entry inferred from
+    whichever cart extension (.p8 or .tic) is sitting directly in dir_. A
+    game with no cart at all yet (spec-only, not built) still gets one
+    entry — assumed pico-8, the jam's default — so it shows up as "not
+    built" rather than vanishing from the page."""
+    subdirs = [p for p in PLATFORM_ORDER if (dir_ / p).is_dir()]
+    if subdirs:
+        return [(p, dir_ / p) for p in subdirs]
+    for platform, info in PLATFORM_INFO.items():
+        if (dir_ / f"{num}.{info['ext']}").exists():
+            return [(platform, dir_)]
+    return [("pico-8", dir_)]
 
 
 def collect_game(dir_: Path, github_base: str | None) -> dict:
     num = dir_.name
     print(f"🔍 peeking into {num}/ ...")
-    cart_path = dir_ / f"{num}.p8"
     readme = read(dir_ / "README.md")
     title = extract_title(readme or "")
     if readme:
         step(f'found README.md — "{title or "(untitled)"}"')
     else:
         step("no README.md yet, shrug emoji")
-    embed_path, embed_status = ensure_export(num, cart_path)
-    has_design = (dir_ / "DESIGN.md").exists()
-    step(f"design doc: {'yep, spotted DESIGN.md' if has_design else 'not written yet'}")
+
+    build_specs = find_build_specs(dir_, num)
+    is_multi = len(build_specs) > 1
+    if is_multi:
+        step(f"multi-platform: {', '.join(p for p, _ in build_specs)}")
+    builds = [collect_build(num, platform, build_dir, is_multi, github_base) for platform, build_dir in build_specs]
+
     return {
         "num": num,
-        "title": extract_title(readme or ""),
+        "title": title,
         "tagline": extract_tagline(readme or ""),
-        "hasCart": cart_path.exists(),
-        "cartRelPath": stage_download(num, cart_path),
-        "embedPath": embed_path,
-        "embedStatus": embed_status,
+        "builds": builds,
         "readmeUrl": f"{github_base}/blob/{GITHUB_REF}/{num}/README.md" if github_base else None,
-        "designUrl": f"{github_base}/blob/{GITHUB_REF}/{num}/DESIGN.md" if (github_base and has_design) else None,
-        "hasDesign": has_design,
     }
 
 
@@ -375,14 +534,16 @@ def generate():
         write_game_page(g)
         step(f"games/{g['num']}.html ready")
 
-    built = sum(1 for g in games if g["hasCart"])
-    embedded = sum(1 for g in games if g["embedPath"])
-    print(f"\n🏁 all done! {len(games)} game(s), {built} built, {embedded} with a live embed to play.")
+    all_builds = [b for g in games for b in g["builds"]]
+    built = sum(1 for b in all_builds if b["hasCart"])
+    embedded = sum(1 for b in all_builds if b["embedPath"])
+    print(f"\n🏁 all done! {len(games)} game(s), {len(all_builds)} build(s) total, {built} built, {embedded} with a live embed to play.")
     if not github_base:
         print("   ⚠️  no GitHub origin remote resolved — readme/design back-rows show local paths, not links")
     for g in games:
-        if g["hasCart"] and not g["embedPath"]:
-            print(f"   ⚠️  game {g['num']}: cart exists but no live embed — {g['embedStatus']}")
+        for b in g["builds"]:
+            if b["hasCart"] and not b["embedPath"]:
+                print(f"   ⚠️  game {g['num']} [{b['platformLabel']}]: cart exists but no live embed — {b['embedStatus']}")
 
 
 TEMPLATE = r"""<!doctype html>
@@ -401,6 +562,8 @@ TEMPLATE = r"""<!doctype html>
   background: var(--brown-950);
   border-bottom: 1px solid var(--border);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .tile-embed iframe { width: 100%; height: 100%; border: 0; display: block; }
 .tile-embed .placeholder {
@@ -433,6 +596,23 @@ TEMPLATE = r"""<!doctype html>
 @media (max-width: 420px) {
   .grid-2 { grid-template-columns: 1fr; }
 }
+
+/* Platform switcher for a tile/page with more than one build. Sits above
+   the embed; clicking a tab must not also trigger the tile's own
+   click-anywhere-to-flip handler (see the JS delegate's stopPropagation). */
+.platform-tabs {
+  display: flex; gap: 1px; background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.platform-tab {
+  flex: 1; font: inherit; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase;
+  background: var(--brown-950); color: var(--tan); border: 0; padding: var(--space-2);
+  cursor: pointer;
+}
+.platform-tab.active { background: var(--brown-900, var(--brown-950)); color: var(--mustard); }
+.platform-panels { position: relative; flex: 1; }
+.platform-panel { display: none; height: 100%; }
+.platform-panel.active { display: block; }
 </style>
 </head>
 <body>
@@ -480,14 +660,32 @@ function readmeIntroHtml(){
   return `<div class="callout"><span class="eyebrow">readme</span>${body}${link}</div>`;
 }
 
-function embedHtml(game){
-  if(game.embedPath){
-    return `<iframe src="${game.embedPath}" loading="lazy" allow="autoplay" scrolling="no"></iframe>`;
+function buildEmbedInner(build){
+  if(build.embedPath){
+    return `<iframe src="${build.embedPath}" loading="lazy" allow="autoplay" scrolling="no"></iframe>`;
   }
-  const hint = game.hasCart
+  const hint = build.hasCart
     ? 'cart exists, no playable web export yet'
     : 'design in progress';
   return `<div class="placeholder"><strong>not ready</strong>${hint}</div>`;
+}
+
+// One build: just its embed, no switcher needed. More than one: a small
+// tab strip above stacked panels, one per platform, first tab active.
+// Tab clicks are handled by a delegated listener (see DOMContentLoaded
+// below) since tiles are rendered from a template string, not built as
+// DOM nodes with individual listeners attached.
+function embedHtml(game){
+  if(game.builds.length === 1){
+    return buildEmbedInner(game.builds[0]);
+  }
+  const tabs = game.builds.map((b, i) =>
+    `<button type="button" class="platform-tab${i === 0 ? ' active' : ''}" data-idx="${i}">${b.platformLabel}</button>`
+  ).join('');
+  const panels = game.builds.map((b, i) =>
+    `<div class="platform-panel${i === 0 ? ' active' : ''}" data-idx="${i}">${buildEmbedInner(b)}</div>`
+  ).join('');
+  return `<div class="platform-tabs" role="tablist">${tabs}</div><div class="platform-panels">${panels}</div>`;
 }
 
 function backRows(game){
@@ -495,18 +693,28 @@ function backRows(game){
   rows.push(`<div class="back-row"><span class="k">readme</span><span class="v">${
     game.readmeUrl ? `<a href="${game.readmeUrl}">${game.num}/README.md</a>` : `${game.num}/README.md`
   }</span></div>`);
-  if(game.designUrl){
-    rows.push(`<div class="back-row"><span class="k">design</span><span class="v"><a href="${game.designUrl}">${game.num}/DESIGN.md</a></span></div>`);
-  }
-  rows.push(`<div class="back-row"><span class="k">download</span><span class="v">${
-    game.cartRelPath ? `<a href="${game.cartRelPath}">${game.num}.p8</a>` : 'not built yet'
-  }</span></div>`);
+  const multi = game.builds.length > 1;
+  game.builds.forEach(build => {
+    const prefix = multi ? `${build.platformLabel.toLowerCase()} ` : '';
+    if(build.designUrl){
+      rows.push(`<div class="back-row"><span class="k">${prefix}design</span><span class="v"><a href="${build.designUrl}">${build.dirRel}/DESIGN.md</a></span></div>`);
+    }
+    rows.push(`<div class="back-row"><span class="k">${prefix}download</span><span class="v">${
+      build.cartRelPath ? `<a href="${build.cartRelPath}">${build.cartFileName}</a>` : 'not built yet'
+    }</span></div>`);
+  });
   return rows.join('');
 }
 
+function overallStatus(game){
+  if(game.builds.some(b => b.embedPath)) return { status: 'built', live: true };
+  if(game.builds.some(b => b.hasCart)) return { status: 'not ready', live: false };
+  return { status: 'not built', live: false };
+}
+
 function tileHtml(game){
-  const status = game.embedPath ? 'built' : (game.hasCart ? 'not ready' : 'not built');
-  const liveClass = game.embedPath ? ' is-live' : '';
+  const { status, live } = overallStatus(game);
+  const liveClass = live ? ' is-live' : '';
   const title = game.title || `Game ${game.num}`;
   return `
     <div class="tile-flip" role="button" tabindex="0" aria-pressed="false" aria-label="${title}, flip for details">
@@ -528,6 +736,21 @@ function tileHtml(game){
     </div>`;
 }
 
+// Switches the active tab/panel pair within whichever .tile-embed the
+// click happened in. stopPropagation is required: a platform-tab lives
+// inside .tile-front, and .tile-flip's own click listener (attached below)
+// toggles the flip on any click within the card, tab or not.
+function handlePlatformTabClick(e){
+  const tab = e.target.closest('.platform-tab');
+  if(!tab) return;
+  e.stopPropagation();
+  const embed = tab.closest('.tile-embed, .game-embed');
+  if(!embed) return;
+  const idx = tab.dataset.idx;
+  embed.querySelectorAll('.platform-tab').forEach(t => t.classList.toggle('active', t.dataset.idx === idx));
+  embed.querySelectorAll('.platform-panel').forEach(p => p.classList.toggle('active', p.dataset.idx === idx));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('readme-intro-wrap').innerHTML = readmeIntroHtml();
   const container = document.getElementById('tiles');
@@ -536,6 +759,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
   container.innerHTML = GAMES.map(tileHtml).join('');
+  container.addEventListener('click', handlePlatformTabClick);
   document.querySelectorAll('.tile-flip').forEach(function (el) {
     function toggle(){
       const pressed = el.getAttribute('aria-pressed') === 'true';
@@ -566,6 +790,7 @@ GAME_TEMPLATE = r"""<!doctype html>
 .game-embed {
   width: 100%; max-width: 480px; aspect-ratio: 1 / 1; margin: 0 auto;
   background: var(--brown-950); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  display: flex; flex-direction: column;
 }
 .game-embed iframe { width: 100%; height: 100%; border: 0; display: block; }
 .game-embed .placeholder {
@@ -576,6 +801,22 @@ GAME_TEMPLATE = r"""<!doctype html>
   display: block; color: var(--mustard); text-transform: uppercase; letter-spacing: 0.06em;
   margin-bottom: var(--space-2); font-size: 0.8rem;
 }
+/* Platform switcher, same pattern as index.html's tile grid (see that
+   TEMPLATE's own copy of these rules for the full rationale) — duplicated
+   here rather than shared since this page has its own <style> block. */
+.platform-tabs {
+  display: flex; gap: 1px; background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.platform-tab {
+  flex: 1; font: inherit; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase;
+  background: var(--brown-950); color: var(--tan); border: 0; padding: var(--space-2);
+  cursor: pointer;
+}
+.platform-tab.active { background: var(--brown-900, var(--brown-950)); color: var(--mustard); }
+.platform-panels { position: relative; flex: 1; }
+.platform-panel { display: none; height: 100%; }
+.platform-panel.active { display: block; }
 </style>
 </head>
 <body>
@@ -599,24 +840,48 @@ document.getElementById('game-title').textContent = GAME.title || `Game ${GAME.n
 const tagline = document.getElementById('game-tagline');
 if(GAME.tagline){ tagline.textContent = GAME.tagline; } else { tagline.remove(); }
 
+function buildEmbedInner(build){
+  if(build.embedPath){
+    return `<iframe src="../${build.embedPath}" loading="lazy" allow="autoplay" scrolling="no"></iframe>`;
+  }
+  const hint = build.hasCart ? 'cart exists, no playable web export yet' : 'design in progress';
+  return `<div class="placeholder"><strong>not ready</strong>${hint}</div>`;
+}
+
 const embed = document.getElementById('game-embed');
-if(GAME.embedPath){
-  embed.innerHTML = `<iframe src="../${GAME.embedPath}" loading="lazy" allow="autoplay" scrolling="no"></iframe>`;
+if(GAME.builds.length === 1){
+  embed.innerHTML = buildEmbedInner(GAME.builds[0]);
 } else {
-  const hint = GAME.hasCart ? 'cart exists, no playable web export yet' : 'design in progress';
-  embed.innerHTML = `<div class="placeholder"><strong>not ready</strong>${hint}</div>`;
+  const tabs = GAME.builds.map((b, i) =>
+    `<button type="button" class="platform-tab${i === 0 ? ' active' : ''}" data-idx="${i}">${b.platformLabel}</button>`
+  ).join('');
+  const panels = GAME.builds.map((b, i) =>
+    `<div class="platform-panel${i === 0 ? ' active' : ''}" data-idx="${i}">${buildEmbedInner(b)}</div>`
+  ).join('');
+  embed.innerHTML = `<div class="platform-tabs" role="tablist">${tabs}</div><div class="platform-panels">${panels}</div>`;
+  embed.addEventListener('click', function(e){
+    const tab = e.target.closest('.platform-tab');
+    if(!tab) return;
+    const idx = tab.dataset.idx;
+    embed.querySelectorAll('.platform-tab').forEach(t => t.classList.toggle('active', t.dataset.idx === idx));
+    embed.querySelectorAll('.platform-panel').forEach(p => p.classList.toggle('active', p.dataset.idx === idx));
+  });
 }
 
 const rows = [];
 rows.push(`<div class="back-row"><span class="k">readme</span><span class="v">${
   GAME.readmeUrl ? `<a href="${GAME.readmeUrl}">${GAME.num}/README.md</a>` : `${GAME.num}/README.md`
 }</span></div>`);
-if(GAME.designUrl){
-  rows.push(`<div class="back-row"><span class="k">design</span><span class="v"><a href="${GAME.designUrl}">${GAME.num}/DESIGN.md</a></span></div>`);
-}
-rows.push(`<div class="back-row"><span class="k">download</span><span class="v">${
-  GAME.cartRelPath ? `<a href="../${GAME.cartRelPath}">${GAME.num}.p8</a>` : 'not built yet'
-}</span></div>`);
+const multi = GAME.builds.length > 1;
+GAME.builds.forEach(build => {
+  const prefix = multi ? `${build.platformLabel.toLowerCase()} ` : '';
+  if(build.designUrl){
+    rows.push(`<div class="back-row"><span class="k">${prefix}design</span><span class="v"><a href="${build.designUrl}">${build.dirRel}/DESIGN.md</a></span></div>`);
+  }
+  rows.push(`<div class="back-row"><span class="k">${prefix}download</span><span class="v">${
+    build.cartRelPath ? `<a href="../${build.cartRelPath}">${build.cartFileName}</a>` : 'not built yet'
+  }</span></div>`);
+});
 document.getElementById('game-links').innerHTML = rows.join('');
 </script>
 </body>

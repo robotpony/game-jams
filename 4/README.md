@@ -4,11 +4,16 @@ In the spirit of Gyrus and Galaga, Gyri is a small space shooter.
 
 ## Details
 
-This is an arcade shooter built using Claude and Pico-8. Follows the format in [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
+This is an arcade shooter built using Claude, following the format in [`../SPEC-FORMAT.md`](../SPEC-FORMAT.md).
 
-The game looks like an Atari 2600 game. Colours, sprites, and fonts approximate the Atari 2600 aesthetic using Pico-8's palette. It's a Space Invaders/Galaga-style shooter with the player's straight firing line replaced by a curved one.
+The game looks like an Atari 2600 game. Colours, sprites, and fonts approximate the Atari 2600 aesthetic. It's a Space Invaders/Galaga-style shooter with the player's straight firing line replaced by a curved one.
 
-**Status: Phase 7 of 8 implemented, plus several play-test follow-up passes** (real sprites, sound, and screens are in; only Phase 8's final token/performance check remains — see [CLAUDE.md](CLAUDE.md)). Design for all phases is locked; see [DESIGN.md](DESIGN.md) for exact numbers and [PLAN.md](PLAN.md) for the build order.
+| Folder | Status | Note |
+| ------ | ------ | ---- |
+| [`pico-8/`](pico-8/) | Phase 7 of 8 implemented, plus several play-test follow-up passes | Real sprites, sound, and screens are in; only Phase 8's final token/performance check remains — see [`pico-8/CLAUDE.md`](pico-8/CLAUDE.md) |
+| [`tic-80/`](tic-80/) | Design not started | Planned as an expanded upscale (bigger playfield, richer sprites, deeper sound/music, new mechanics), not a straight port — see [`tic-80/CLAUDE.md`](tic-80/CLAUDE.md) |
+
+This README describes the game at the level that's shared across both: overview, scenes, core mechanic, player state, game-over conditions. Exact numbers, palettes, and sprite/sound detail live in each platform's own `DESIGN.md`, since those differ by build.
 
 ## Game overview
 

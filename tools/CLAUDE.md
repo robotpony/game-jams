@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `maps/`, `music/`, and `shared/` are still placeholder directories with no scripts yet. `sprites/` has a working tool: `sprites/sprite_tool.py` (preview, sheet, ascii, patch subcommands) and `sprites/defs/` (hex-grid sprite source files). `sfx/` also has a working tool now: `sfx/sfx_tool.py` (encode, decode, patch, patch-all, selftest subcommands), `sfx/defs/` (human-readable note-sequence source files), and `sfx/manifests/`. `export/` has one tool, `export/strip_comments.py` (see [Export capacity vs. token limit](#export-capacity-vs-token-limit)), that `preview/generate.py` calls automatically before every `pico8 -export` run; it isn't an asset-generation tool like the others, it operates on a whole `.p8` cart rather than producing one section's data. Check [TASKS.md](TASKS.md) for the current backlog before starting work on the other asset types.
 
+[`pico8.md`](pico8.md) is the working guide to the whole Claude+Pico-8 workflow across this repo: the document flow, these tools, `lib/`, token/export budgeting, Lua dialect notes, the state machine convention, playtesting technique, and a generalized pitfalls list. This file stays focused on `tools/`'s own scripts and data formats; start at `pico8.md` for anything broader than that.
+
 There is no build, lint, or test tooling. Nothing exists to run yet, and none of the commands in [Usage pattern](#usage-pattern) below correspond to real files — they illustrate the intended CLI shape for scripts you write here.
 
 Asset generation utilities for Pico-8 game development. These are host-side scripts (Python, shell, or Node) that run on the developer's machine to produce content that gets pasted into `.p8` cartridges.

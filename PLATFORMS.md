@@ -18,7 +18,7 @@ Pico-8, Picotron, Pygame, and TIC-80 are all valid jam platforms, author's choic
 | Project shape | Single `.p8` cart file | Multi-file project in its own virtual filesystem | Plain `.py` + asset files | Single `.tic` cart file |
 | Web export | Native; what `preview/generate.py` currently relies on | Native, different embed mechanism than Pico-8's | None built-in (would need something like pygbag) | Native |
 
-The Picotron and TIC-80 rows are from general familiarity with the tools, not verified against a real build in this project. Confirm against the current manual before locking a DESIGN.md's Screen layout or Budget section to any of these numbers — Pico-8's row is the only one battle-tested here, across 6 built carts.
+The TIC-80 row is verified against a real local build (see [`tools/tic80.md`](tools/tic80.md)); the Picotron row is still from general familiarity with the tool, not verified against a real build in this project. Confirm Picotron specifics against the current manual before locking a DESIGN.md's Screen layout or Budget section to any of its numbers.
 
 ## Per-platform notes
 
@@ -36,9 +36,10 @@ No budget ceiling at all, and no proprietary asset format: sprites are plain PNG
 
 ### TIC-80
 
-Closest in spirit to Pico-8 (same fantasy-console category, similar resolution class, still a hard cart-size ceiling), so it's a smaller conceptual jump than Picotron or Pygame if the goal is "same constraints, slightly more room" rather than "no constraints." Its budget is cart-size in bytes, not a token count, and that limit varies by which supported language the cart uses.
+Closest in spirit to Pico-8 (same fantasy-console category, similar resolution class, still a hard cart-size ceiling), so it's a smaller conceptual jump than Picotron or Pygame if the goal is "same constraints, slightly more room" rather than "no constraints." Its budget is cart-size in bytes, not a token count, and that limit varies by which supported language the cart uses. Full constraints, RAM/VRAM layout, cart format, and CLI workflow are documented in [`tools/tic80.md`](tools/tic80.md) rather than repeated here; game 4's `tic-80/` build ([`4/tic-80/CLAUDE.md`](4/tic-80/CLAUDE.md)) is the first to use it.
 
 ## Related
 
 - [`SPEC-FORMAT.md`](SPEC-FORMAT.md#platforms-and-folder-layout) — how a game folder is organized once it has more than one platform's build
 - [`CLAUDE.md`](CLAUDE.md) — Pico-8 constraints as they apply project-wide, since every game built so far targets Pico-8
+- [`tools/tic80.md`](tools/tic80.md) — TIC-80 constraints, RAM/VRAM layout, cart format, and CLI workflow, verified against the local build
