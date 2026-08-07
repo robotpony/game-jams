@@ -28,7 +28,7 @@ Each entry's spec follows the format in [SPEC-FORMAT.md](SPEC-FORMAT.md).
 | 1 | Built | Pico-8 | not measured |
 | 2 | In progress (Phases 1–6 of 7) | Pico-8 | not measured |
 | 3 | Built | Pico-8 | not measured |
-| 4 | Pico-8: Phase 7 of 8, play-tested. TIC-80 upscale: design not started | Pico-8, TIC-80 | 2,095 / 8,192 (Pico-8) |
+| 4 | Pico-8: Phase 7 of 8, play-tested. TIC-80 upscale: Phase 0a (asset tooling) done, Phase 0b proceeding as a proof-of-concept build (Stage A: visuals & layout, in progress) | Pico-8, TIC-80 | 2,095 / 8,192 (Pico-8) |
 | 5 | Built; rope-grab bug open ([BUGS.md](BUGS.md#5--to-the-top)) | Pico-8 | 2,898 / 8,192 |
 | 6 | Phase 0–8 of 9 built | Pico-8 | 4,357 / 8,192 |
 | 7 | Spec only, not built | Pico-8 | — |
